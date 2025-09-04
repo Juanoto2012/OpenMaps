@@ -10,11 +10,11 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Looper
 import android.provider.Settings
+import android.speech.tts.TextToSpeech
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresPermission
 import androidx.appcompat.widget.SearchView
@@ -47,14 +47,22 @@ import org.maplibre.android.location.modes.CameraMode
 import org.maplibre.android.location.modes.RenderMode
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.Style
+import org.maplibre.android.style.expressions.Expression
 import org.maplibre.android.style.layers.LineLayer
+import org.maplibre.android.style.layers.Property
+import org.maplibre.android.style.layers.PropertyFactory
+import org.maplibre.android.style.layers.PropertyFactory.iconImage
 import org.maplibre.android.style.layers.PropertyFactory.lineColor
 import org.maplibre.android.style.layers.PropertyFactory.lineWidth
+import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.geojson.common.toJvm
+import org.maplibre.geojson.model.Feature
+import org.maplibre.geojson.model.FeatureCollection
 import org.maplibre.geojson.model.LineString
 import org.maplibre.geojson.model.Point
 import org.maplibre.geojson.turf.TurfMisc
+import org.maplibre.navigation.core.location.engine.GoogleLocationEngine
 import org.maplibre.navigation.core.location.replay.ReplayRouteLocationEngine
 import org.maplibre.navigation.core.location.toAndroidLocation
 import org.maplibre.navigation.core.models.BannerInstructions
@@ -69,17 +77,22 @@ import org.maplibre.navigation.sample.android.adapter.SuggestionAdapter
 import org.maplibre.navigation.sample.android.databinding.FragmentCoreOnlyBinding
 import org.maplibre.navigation.sample.android.model.Suggestion
 import java.io.IOException
+import java.util.Locale
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
 import kotlin.math.roundToInt
 
-class CoreOnlyFragment : Fragment() {
+class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
 
     companion object {
         private const val TAG = "CoreOnlyFragment"
         private const val ROUTE_SOURCE_ID = "route-source"
         private const val ROUTE_LAYER_ID = "route-layer"
+        private const val ROUTE_INDEX = "route_index"
+        private const val DESTINATION_LAYER_ID = "destination-layer"
+        private const val DESTINATION_SOURCE_ID = "destination-source"
+        private const val MARKER_ICON = "marker-icon"
         private const val MAP_STYLE_URL = "https://tiles.versatiles.org/assets/styles/colorful/style.json"
 
         private const val VALHALLA_URL = "https://valhalla1.openstreetmap.de/route"
@@ -103,6 +116,13 @@ class CoreOnlyFragment : Fragment() {
     private lateinit var destinationPoint : Point
     private lateinit var adapter: SuggestionAdapter
 
+    private var selectedRoute: DirectionsRoute? = null
+
+    private var textToSpeech: TextToSpeech? = null
+
+    private var lastSpokenInstruction: String? = null
+
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -123,6 +143,8 @@ class CoreOnlyFragment : Fragment() {
             insets
         }
 
+        textToSpeech = TextToSpeech(requireContext(), this)
+
         binding.map.getMapAsync { map ->
             map.setStyle(
                 Style.Builder()
@@ -136,7 +158,6 @@ class CoreOnlyFragment : Fragment() {
 
 
         adapter = SuggestionAdapter(emptyList()){selectedItem ->
-            Toast.makeText(requireContext(), R.string.navigation_started, Toast.LENGTH_SHORT).show()
 
             destinationPoint = Point(selectedItem.lon, selectedItem.lat)
             fetchDestination()
@@ -184,16 +205,33 @@ class CoreOnlyFragment : Fragment() {
            }
 
        })
-
-
-
-
         binding.map.onCreate(savedInstanceState)
     }
 
+    override fun onInit(p0: Int) {
+        if (p0 == TextToSpeech.SUCCESS) {
+            val result = textToSpeech?.setLanguage(Locale.US)
+
+            if(result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                Log.d(TAG, getString(R.string.language_not_supported))
+            }else {
+                Log.d(TAG, getString(R.string.initialization_successfully))
+            }
+        }else {
+            Log.d(TAG, getString(R.string.initialization_failed))
+        }
+    }
+
+
     override fun onDestroy() {
         binding.map.onDestroy()
+        textToSpeech?.shutdown()
         super.onDestroy()
+    }
+
+
+    private fun speak(instruction: String?) {
+        textToSpeech?.speak(instruction, TextToSpeech.QUEUE_FLUSH, null, null)
     }
 
 
@@ -293,7 +331,6 @@ class CoreOnlyFragment : Fragment() {
     private fun loadRoute(map: MapLibreMap, style: Style, destinationPoint: Point) {
 
         requireActivity().runOnUiThread {
-            binding.instructionBar.visibility = View.VISIBLE
             binding.searchBar.visibility = View.INVISIBLE
             binding.tvManuever.text = context?.getString(R.string.loading)
         }
@@ -301,33 +338,44 @@ class CoreOnlyFragment : Fragment() {
         getUserLocation{userLocation ->
             lifecycleScope.launch {
                 val directionsResponse = fetchRoute(userLocation, destinationPoint)
-                val route = directionsResponse.routes.first().copy(
-                    routeOptions = RouteOptions(
+                Log.d(TAG, "${directionsResponse.routes.size}")
+
+                val routes = directionsResponse.routes.mapIndexed { index, route ->
+                    route.copy(
+                        routeOptions = RouteOptions(
                         // These dummy route options are not not used to create directions,
                         // but currently they are necessary to start the navigation
                         // and to use the banner & voice instructions.
                         // Again, this isn't ideal, but it is a requirement of the framework.
-                        baseUrl = "https://valhalla.routing",
-                        profile = "valhalla",
-                        user = "valhalla",
-                        accessToken = "valhalla",
-                        voiceInstructions = true,
-                        bannerInstructions = true,
-                        language = "en-US",
-                        coordinates = listOf(
-                            userLocation,
-                            destinationPoint
-                        ),
-                        requestUuid = "0000-0000-0000-0000"
+                            baseUrl = "https://valhalla.routing",
+                            profile = "valhalla",
+                            user = "valhalla",
+                            accessToken = "valhalla",
+                            voiceInstructions = true,
+                            bannerInstructions = true,
+                            language = "en-US",
+                            coordinates = listOf(
+                                userLocation,
+                                destinationPoint
+                            ),
+                            requestUuid = "0000-0000-0000-0000"
+                        )
                     )
-                )
+                }
 
-                drawRoute(style, route)
+                drawRoute(map,style, routes)
+
+                addDestinationMarker(style, destinationPoint)
 
                 enableLocationComponent(map, style)
 
+                handleRouteClick(routes, map, style)
+
                 val locationEngine = ReplayRouteLocationEngine()
-//                val locationEngine = AndroidLocationEngineImpl(requireContext())
+//                val locationEngine = GoogleLocationEngine(
+//                    requireContext(),
+//                    looper = Looper.getMainLooper(),
+//                )
                 val options = MapLibreNavigationOptions(
                     defaultMilestonesEnabled = true
                 )
@@ -341,7 +389,9 @@ class CoreOnlyFragment : Fragment() {
                     map.locationComponent.forceLocationUpdate(location.toAndroidLocation())
 
                     val style = map.style
-                    val source = style?.getSourceAs<GeoJsonSource>(ROUTE_SOURCE_ID)
+
+                    val selectedRouteIndex = routes.indexOf(selectedRoute)
+                        val source = style?.getSourceAs<GeoJsonSource>("$ROUTE_SOURCE_ID-$selectedRouteIndex")
 
                     val fullLine = LineString(routeProgress.directionsRoute.geometry, Constants.PRECISION_6)
 
@@ -361,24 +411,148 @@ class CoreOnlyFragment : Fragment() {
 
                     }
 
+
+
+                    val voiceInstruction =  routeProgress.currentLegProgress.currentStep.voiceInstructions
+
+                    val remainingStepDistanceMeters =
+                        routeProgress.currentLegProgress.currentStepProgress.distanceRemaining
                     routeProgress.currentLegProgress.currentStep.bannerInstructions?.first()
                         ?.let { bannerInstruction: BannerInstructions ->
-                            val remainingStepDistanceMeters =
-                                routeProgress.currentLegProgress.currentStepProgress.distanceRemaining
-                            binding.tvManuever.text =
-                                "${remainingStepDistanceMeters.roundToInt()}m : ${bannerInstruction.primary.type}+${bannerInstruction.primary.modifier} ${bannerInstruction.primary.text}"
 
-                               val iconImage = IconMapper.getIconImage(bannerInstruction.primary.type, bannerInstruction.primary.modifier)
-//
+                            binding.tvManuever.text =
+                                " ${bannerInstruction.primary.text.removeSuffix(".")} after ${remainingStepDistanceMeters.roundToInt()}m"
+
+                            val iconImage = IconMapper.getIconImage(bannerInstruction.primary.type, bannerInstruction.primary.modifier)
+
                             binding.imvManuever.setImageResource(iconImage)
                         }
+
+                    voiceInstruction?.lastOrNull() { remainingStepDistanceMeters <= it.distanceAlongGeometry }?.let { instruction ->
+                        if (lastSpokenInstruction != instruction.announcement) {
+                            speak(instruction.announcement)
+                            lastSpokenInstruction = instruction.announcement
+                        }
+                    }
+
                 }
 
-                locationEngine.assign(route)
-                mlNavigation.startNavigation(route)
+                selectedRoute = routes.firstOrNull()
+
+                binding.startNavButton.setOnClickListener {
+                    selectedRoute?.let {route ->
+                        locationEngine.assign(route)
+                        mlNavigation.startNavigation(route)
+                        binding.instructionBar.visibility = View.VISIBLE
+                        binding.startNavButton.visibility = View.GONE
+                        binding.bottomSheet.bottomLayout.visibility = View.VISIBLE
+                    }
+
+                    routes.forEachIndexed { index, route ->
+                        if (route != selectedRoute) {
+                            style.removeLayer("$ROUTE_LAYER_ID-$index")
+                            style.removeSource("$ROUTE_SOURCE_ID-$index")
+                        }
+                    }
+
+                    followLocation(map)
+
+                }
+
+                binding.bottomSheet.cancelNavButton.setOnClickListener {
+                    mlNavigation.stopNavigation()
+                    binding.bottomSheet.bottomLayout.visibility = View.GONE
+                    binding.instructionBar.visibility = View.GONE
+                    binding.searchBar.visibility = View.VISIBLE
+                    binding.searchBar.setQuery("",false)
+                    routes.forEachIndexed { index, _ ->
+                        style.removeLayer("$ROUTE_LAYER_ID-$index")
+                        style.removeSource("$ROUTE_SOURCE_ID-$index")
+                    }
+
+                    selectedRoute = null
+                }
+
             }
 
         }
+
+    }
+
+
+
+    private fun handleRouteClick(routes: List<DirectionsRoute>, map: MapLibreMap, style: Style) {
+
+        map.addOnMapClickListener { point ->
+
+            val screenPoint = map.projection.toScreenLocation(point)
+            val features = map.queryRenderedFeatures(
+                screenPoint,
+                *routes.indices.map { "$ROUTE_LAYER_ID-$it" }.toTypedArray()
+            )
+
+            if (features.isNotEmpty()) {
+                val clickedFeature= features[0]
+
+                val routeIndex = clickedFeature.getNumberProperty(ROUTE_INDEX)?.toInt()
+
+                Log.d(TAG, "$routeIndex")
+
+                if (routeIndex != null) {
+                    selectedRoute = routes[routeIndex]
+
+                    routes.forEachIndexed { i, _ ->
+                        val color = if (i == routeIndex) Color.BLUE else Color.LTGRAY
+                        style.getLayer("$ROUTE_LAYER_ID-$i")?.setProperties(
+                            lineColor(color)
+                        )
+                    }
+
+                    val selectedLayerId = "$ROUTE_LAYER_ID-$routeIndex"
+                    val selectedLayer = style.getLayer(selectedLayerId)
+                    if (selectedLayer != null) {
+                        style.removeLayer(selectedLayer)
+                        style.addLayer(selectedLayer)
+                    }
+                }
+
+            }
+            true
+        }
+
+    }
+
+
+    private fun addDestinationMarker(style: Style, destinationPoint: Point) {
+
+        style.removeLayer(DESTINATION_LAYER_ID)
+        style.removeSource(DESTINATION_SOURCE_ID)
+
+        style.getSource(DESTINATION_SOURCE_ID)
+        style.getLayer(DESTINATION_LAYER_ID)
+
+        val destinationSource = GeoJsonSource(DESTINATION_SOURCE_ID, destinationPoint.toJvm())
+        style.addSource(destinationSource)
+
+        style.addImage(MARKER_ICON, ContextCompat.getDrawable(requireContext(), R.drawable.marker)!!)
+
+        val layer = SymbolLayer(DESTINATION_LAYER_ID, DESTINATION_SOURCE_ID)
+            .withProperties(
+                iconImage(MARKER_ICON),
+                PropertyFactory.iconSize(
+                    Expression.interpolate(
+                        Expression.linear(), Expression.zoom(),
+                        Expression.stop(0,0.15f),
+                        Expression.stop(22,0.15f)
+                    )
+                ),
+                PropertyFactory.iconAnchor(Property.ICON_ANCHOR_BOTTOM),
+                PropertyFactory.iconAllowOverlap(true),
+                PropertyFactory.iconIgnorePlacement(true)
+
+            )
+
+        style.addLayer(layer)
 
     }
 
@@ -404,6 +578,7 @@ class CoreOnlyFragment : Fragment() {
                 "banner_instructions" to true,
                 "voice_instructions" to true,
                 "language" to "en-US",
+                "alternates" to 3,
                 "directions_options" to mapOf(
                     "units" to "kilometers"
                 ),
@@ -443,11 +618,14 @@ class CoreOnlyFragment : Fragment() {
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 continuation.resumeWithException(e)
+                Log.d(TAG, "${e.message}")
             }
 
             override fun onResponse(call: Call, response: Response) {
                 val raw = response.body!!.string()
+                Log.d(TAG, raw)
                 val directionsResponse = DirectionsResponse.fromJson(raw)
+                Log.d(TAG, "${directionsResponse.routes.size}")
                 continuation.resume(directionsResponse)
             }
         })
@@ -456,7 +634,7 @@ class CoreOnlyFragment : Fragment() {
 
     private fun fetchSuggestion(query: String?) {
         val client = OkHttpClient()
-        val url = "https://photon.komoot.io/api/?q=$query&lon=${originPoint.longitude}&lat=${originPoint.latitude}&limit=10&lang=en"
+        val url = "https://photon.komoot.io/api/?q=$query&lon=${originPoint.longitude}&lat=${originPoint.latitude}&limit=10&lang=en&location_bias_scale=1.0&bbox=68.0,6.5,97.5,36.9"
 
         val request = Request.Builder().url(url).build()
 
@@ -483,37 +661,38 @@ class CoreOnlyFragment : Fragment() {
                     val coords = geometry.getJSONArray("coordinates")
 
                     val name = properties.optString("name")
+                    val city = properties.optString("city")
+                    val state = properties.optString("state")
                     val country = properties.optString("country")
                     val lon = coords.getDouble(0)
                     val lat = coords.getDouble(1)
 
 
-                    suggestions.add(Suggestion(name, country, lon, lat))
+                    suggestions.add(Suggestion(name, city, state, country, lon, lat))
                 }
 
                 requireActivity().runOnUiThread {
                     adapter.updateData(suggestions)
                 }
 
+                if(features.length() > 0) {
+                    val first = features.getJSONObject(0)
 
-                val first = features.getJSONObject(0)
+                    val geometry = first.getJSONObject("geometry")
 
-                val geometry = first.getJSONObject("geometry")
+                    val coords = geometry.getJSONArray("coordinates")
 
-                val coords = geometry.getJSONArray("coordinates")
+                    val lon = coords.getDouble(0)
+                    val lat = coords.getDouble(1)
 
-                val lon = coords.getDouble(0)
-                val lat = coords.getDouble(1)
-
-                Log.d(TAG,"$lon $lat")
+                    Log.d(TAG,"$lon $lat")
 
 
-                destinationPoint = Point(lon, lat)
+                    destinationPoint = Point(lon, lat)
+                }
             }
 
         })
-
-
     }
 
     private fun fetchDestination() {
@@ -527,21 +706,37 @@ class CoreOnlyFragment : Fragment() {
     }
 
 
-    private fun drawRoute(style: Style, route: DirectionsRoute) {
-        val routeLine = LineString(route.geometry, Constants.PRECISION_6)
+    private fun drawRoute(map: MapLibreMap ,style: Style, routes: List<DirectionsRoute>) {
+        style.removeLayer(ROUTE_LAYER_ID)
+        style.removeSource(ROUTE_SOURCE_ID)
 
-        // The toJvm() extension converts the LineString to the deprecated Jvm one.
-        val routeSource = GeoJsonSource(ROUTE_SOURCE_ID, routeLine.toJvm())
-        style.addSource(routeSource)
+        routes.forEachIndexed { index, route ->
+            val routeLine = LineString(route.geometry, Constants.PRECISION_6)
 
-        val routeLayer = LineLayer(ROUTE_LAYER_ID, ROUTE_SOURCE_ID)
-            .withProperties(
-                lineWidth(5f),
-                lineColor(Color.BLUE)
+            val feature = Feature(routeLine)
+            feature.addProperty(ROUTE_INDEX, index)
+            val sourceId = "$ROUTE_SOURCE_ID-$index"
+            val layerId = "$ROUTE_LAYER_ID-$index"
+
+            val routeSource = GeoJsonSource(sourceId, FeatureCollection(listOf(feature)).toJvm())
+
+            style.addSource(routeSource)
+
+            val routeLayer = LineLayer(layerId, sourceId).withProperties(
+                lineWidth( if (index == 0) 6f else 5f ),
+                lineColor( if (index == 0) Color.BLUE else Color.LTGRAY )
             )
 
-        style.addLayer(routeLayer)
+            if (index == 0) {
+                style.addLayer(routeLayer)
+            } else {
+                style.addLayerBelow(routeLayer, "$ROUTE_LAYER_ID-${index-1}")
+            }
+            binding.startNavButton.visibility = View.VISIBLE
+
+        }
     }
+
 
     @SuppressWarnings("MissingPermission")
     private fun enableLocationComponent(map: MapLibreMap, style: Style) {
@@ -576,4 +771,5 @@ class CoreOnlyFragment : Fragment() {
             }
         )
     }
+
 }

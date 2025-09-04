@@ -16,10 +16,16 @@ class SuggestionAdapter(private var suggestion: List<Suggestion>, private val on
         return SuggestionViewHolder(view)
     }
 
+    @SuppressLint("SetTextI18n")
     override fun onBindViewHolder(holder: SuggestionViewHolder, position: Int) {
         val currentItem = suggestion[position]
         holder.item.text = currentItem.name
-        holder.country.text = currentItem.country
+        val region = if(!currentItem.state.isNullOrBlank()){
+            currentItem.state
+        }else {
+            currentItem.city
+        }
+        holder.country.text = "$region, ${currentItem.country}"
 
         holder.item.setOnClickListener {
             onItemClick(currentItem)

@@ -101,7 +101,6 @@
                 android:id="@+id/tvManuever"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:gravity="center"
                 android:padding="16dp"
                 android:textColor="@color/white"
                 android:textSize="20sp"
@@ -110,8 +109,22 @@
 
         </LinearLayout>
 
+        <Button
+            android:id="@+id/startNavButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Start"
+            android:visibility="gone"
+            android:layout_gravity="bottom|end"
+            android:layout_marginEnd="10dp"
+            android:textColor="@color/white"
+            android:backgroundTint="@color/blue"
+            android:layout_marginBottom="20dp"/>
 
     </FrameLayout>
+
+    <include android:id="@+id/bottomSheet"
+        layout="@layout/cancel_bottom_sheet"/>
 
 
 </FrameLayout>
