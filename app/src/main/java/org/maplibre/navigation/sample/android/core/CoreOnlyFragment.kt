@@ -15,6 +15,8 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresPermission
 import androidx.appcompat.widget.SearchView
@@ -30,9 +32,12 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.snackbar.Snackbar
 import com.google.gson.Gson
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.MediaType.Companion.toMediaType
@@ -41,6 +46,10 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import org.json.JSONObject
+import org.maplibre.android.camera.CameraPosition
+import org.maplibre.android.camera.CameraUpdateFactory
+import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.location.LocationComponentActivationOptions
 import org.maplibre.android.location.OnLocationCameraTransitionListener
 import org.maplibre.android.location.modes.CameraMode
@@ -61,8 +70,9 @@ import org.maplibre.geojson.model.Feature
 import org.maplibre.geojson.model.FeatureCollection
 import org.maplibre.geojson.model.LineString
 import org.maplibre.geojson.model.Point
+import org.maplibre.geojson.turf.TurfMeasurement
 import org.maplibre.geojson.turf.TurfMisc
-import org.maplibre.navigation.core.location.engine.GoogleLocationEngine
+import org.maplibre.geojson.turf.TurfUnit
 import org.maplibre.navigation.core.location.replay.ReplayRouteLocationEngine
 import org.maplibre.navigation.core.location.toAndroidLocation
 import org.maplibre.navigation.core.models.BannerInstructions
@@ -77,6 +87,9 @@ import org.maplibre.navigation.sample.android.adapter.SuggestionAdapter
 import org.maplibre.navigation.sample.android.databinding.FragmentCoreOnlyBinding
 import org.maplibre.navigation.sample.android.model.Suggestion
 import java.io.IOException
+import java.lang.Exception
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -105,16 +118,17 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
 
         private const val PACKAGE = "package"
 
-
+        private const val TIME_PATTERN = "h:mm a"
     }
 
     private lateinit var binding: FragmentCoreOnlyBinding
     private lateinit var fusedLocationProviderClient: FusedLocationProviderClient
 
-
     private lateinit var originPoint: Point
     private lateinit var destinationPoint : Point
     private lateinit var adapter: SuggestionAdapter
+
+    private var currentClickListener: MapLibreMap.OnMapClickListener? = null
 
     private var selectedRoute: DirectionsRoute? = null
 
@@ -145,17 +159,30 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
 
         textToSpeech = TextToSpeech(requireContext(), this)
 
+        val bottomSheet = BottomSheetBehavior.from(binding.routeOptionsSheet)
+
+        bottomSheet.state = BottomSheetBehavior.STATE_COLLAPSED
+
         binding.map.getMapAsync { map ->
             map.setStyle(
                 Style.Builder()
                     .fromUri(MAP_STYLE_URL)
             ) { style ->
                 initializeLocationAndMap(map, style)
+
+                ViewCompat.setOnApplyWindowInsetsListener(binding.map) {_, insets ->
+                    map.uiSettings.setCompassMargins(
+                        0,
+                        binding.instructionBar.height + 250,
+                        20,
+                        0
+                    )
+                    insets
+                }
             }
         }
 
         requestLocationPermission()
-
 
         adapter = SuggestionAdapter(emptyList()){selectedItem ->
 
@@ -167,11 +194,18 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
         binding.recyclerView.layoutManager = LinearLayoutManager(requireContext())
         binding.recyclerView.adapter = adapter
 
+        val searchEditText = binding.searchBar.findViewById<EditText>(androidx.appcompat.R.id.search_src_text)
+
+        searchEditText.setTextColor(Color.BLACK)
+        searchEditText.setHintTextColor(Color.BLACK)
+
         binding.searchBar.setOnQueryTextFocusChangeListener { _, hasFocus ->
             if(hasFocus) {
+                binding.routeOptionsSheet.visibility = View.GONE
                 binding.cancelButton.visibility  = View.VISIBLE
                 binding.blankView.visibility = View.VISIBLE
             }else {
+                binding.routeOptionsSheet.visibility = View.VISIBLE
                 binding.cancelButton.visibility  = View.GONE
                 binding.blankView.visibility = View.GONE
             }
@@ -186,6 +220,12 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
             binding.cancelButton.visibility = View.GONE
             binding.searchResultsContainer.visibility = View.GONE
 
+        }
+
+        binding.recenterButton.setOnClickListener {
+            binding.map.getMapAsync { map ->
+                followLocation(map)
+            }
         }
 
 
@@ -315,20 +355,22 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
     private fun initializeLocationAndMap(map: MapLibreMap, style: Style) {
         getUserLocation { location ->
             originPoint = location
-            enableLocationComponent(map, style)
+            enableLocationComponent(location, map, style)
             map.locationComponent.forceLocationUpdate(
                 Location("").apply {
                     latitude = location.latitude
                     longitude = location.longitude
+                    altitude = 0.0
                 }
             )
         }
-
     }
 
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
     @SuppressLint("SetTextI18n")
     private fun loadRoute(map: MapLibreMap, style: Style, destinationPoint: Point) {
+
+        selectedRoute = null
 
         requireActivity().runOnUiThread {
             binding.searchBar.visibility = View.INVISIBLE
@@ -337,7 +379,9 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
 
         getUserLocation{userLocation ->
             lifecycleScope.launch {
-                val directionsResponse = fetchRoute(userLocation, destinationPoint)
+                val directionsResponse = withContext(Dispatchers.IO) {
+                    fetchRoute(userLocation, destinationPoint)
+                }
                 Log.d(TAG, "${directionsResponse.routes.size}")
 
                 val routes = directionsResponse.routes.mapIndexed { index, route ->
@@ -367,9 +411,12 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
 
                 addDestinationMarker(style, destinationPoint)
 
-                enableLocationComponent(map, style)
+                showRoutesOverview(map, routes)
+
+//                enableLocationComponent(userLocation,map, style)
 
                 handleRouteClick(routes, map, style)
+
 
                 val locationEngine = ReplayRouteLocationEngine()
 //                val locationEngine = GoogleLocationEngine(
@@ -385,33 +432,99 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                     locationEngine = locationEngine,
                     options = options
                 )
-                mlNavigation.addProgressChangeListener { location, routeProgress ->
-                    map.locationComponent.forceLocationUpdate(location.toAndroidLocation())
 
+                mlNavigation.addProgressChangeListener { location, routeProgress ->
+
+                    map.locationComponent.forceLocationUpdate(location.toAndroidLocation())
                     val style = map.style
 
+                    val distanceRemaining = routeProgress.distanceRemaining
+                    val durationRemaining = routeProgress.durationRemaining
+
+                    updateEta(durationRemaining, distanceRemaining)
+
+
                     val selectedRouteIndex = routes.indexOf(selectedRoute)
-                        val source = style?.getSourceAs<GeoJsonSource>("$ROUTE_SOURCE_ID-$selectedRouteIndex")
+
+                    val source = style?.getSourceAs<GeoJsonSource>("$ROUTE_SOURCE_ID-$selectedRouteIndex")
 
                     val fullLine = LineString(routeProgress.directionsRoute.geometry, Constants.PRECISION_6)
 
                     val currentPoint = Point(location.longitude, location.latitude)
+
+                    val routePoints = fullLine.coordinates
+
+                    val nearestPoint = TurfMisc.nearestPointOnLine(currentPoint, routePoints,
+                        TurfUnit.KILOMETERS)
+
+                    val nearestPointGeometry = nearestPoint.geometry as Point
+
+                    val distanceToRoute = TurfMeasurement.distance(currentPoint, nearestPointGeometry,
+                        TurfUnit.METERS)
+
+                    Log.d(TAG, "$nearestPoint")
+                    Log.d(TAG, "$distanceToRoute")
+
+                    if(distanceToRoute > 40) {
+                        mlNavigation.stopNavigation()
+
+                        Log.d(TAG, getString(R.string.user_off_route))
+                        Toast.makeText(requireContext(), R.string.user_off_route,
+                            Toast.LENGTH_SHORT).show()
+
+                        routes.forEachIndexed { index, route ->
+                            style?.removeLayer("$ROUTE_LAYER_ID-$index")
+                            style?.removeSource("$ROUTE_SOURCE_ID-$index")
+                        }
+
+
+                        lifecycleScope.launch {
+                            val newDirectionRes = withContext(Dispatchers.IO) {
+                                fetchRoute(currentPoint, destinationPoint)
+                            }
+
+                            val newRoute = newDirectionRes.routes.first().copy(
+                                    routeOptions = RouteOptions(
+                                        baseUrl = "https://valhalla.routing",
+                                        profile = "valhalla",
+                                        user = "valhalla",
+                                        accessToken = "valhalla",
+                                        voiceInstructions = true,
+                                        bannerInstructions = true,
+                                        language = "en-US",
+                                        coordinates = listOf(
+                                            currentPoint,
+                                            destinationPoint
+                                        ),
+                                        requestUuid = "0000-0000-0000-0000"
+                                    )
+                                )
+
+                            drawRoute(map, style!!, listOf(newRoute))
+
+                            mlNavigation.startNavigation(newRoute)
+                        }
+
+                    }
 
                     val endPoint = fullLine.coordinates.last()
                     val remaining = TurfMisc.lineSlice(currentPoint, endPoint, fullLine)
 
                     source?.setGeoJson(remaining.toJvm())
 
-                    val distanceRemaining = routeProgress.distanceRemaining
-
-                    if(distanceRemaining < 10) {
+                    if(distanceRemaining < 30) {
                         mlNavigation.stopNavigation()
-                        style?.removeLayer(ROUTE_LAYER_ID)
-                        style?.removeSource(ROUTE_SOURCE_ID)
+                        resetCameraState(map)
+
+                        routes.forEachIndexed { index, route ->
+                            style?.removeLayer("$ROUTE_LAYER_ID-$index")
+                            style?.removeSource("$ROUTE_SOURCE_ID-$index")
+                        }
+                        binding.instructionBar.visibility = View.GONE
+                        binding.bottomSheet.bottomLayout.visibility = View.GONE
+                        binding.searchBar.visibility = View.VISIBLE
 
                     }
-
-
 
                     val voiceInstruction =  routeProgress.currentLegProgress.currentStep.voiceInstructions
 
@@ -420,15 +533,18 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                     routeProgress.currentLegProgress.currentStep.bannerInstructions?.first()
                         ?.let { bannerInstruction: BannerInstructions ->
 
-                            binding.tvManuever.text =
-                                " ${bannerInstruction.primary.text.removeSuffix(".")} after ${remainingStepDistanceMeters.roundToInt()}m"
+                            binding.tvManuever.text = getString(
+                                R.string.after,
+                                bannerInstruction.primary.text.removeSuffix("."),
+                                remainingStepDistanceMeters.roundToInt()
+                            )
 
                             val iconImage = IconMapper.getIconImage(bannerInstruction.primary.type, bannerInstruction.primary.modifier)
 
                             binding.imvManuever.setImageResource(iconImage)
                         }
 
-                    voiceInstruction?.lastOrNull() { remainingStepDistanceMeters <= it.distanceAlongGeometry }?.let { instruction ->
+                    voiceInstruction?.lastOrNull { remainingStepDistanceMeters <= it.distanceAlongGeometry }?.let { instruction ->
                         if (lastSpokenInstruction != instruction.announcement) {
                             speak(instruction.announcement)
                             lastSpokenInstruction = instruction.announcement
@@ -437,13 +553,21 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
 
                 }
 
-                selectedRoute = routes.firstOrNull()
+                if(selectedRoute == null && routes.isNotEmpty()) {
+                    selectedRoute = routes.first()
+                }
+
+                selectedRoute?.let {
+                    showEta(selectedRoute!!)
+                }
 
                 binding.startNavButton.setOnClickListener {
                     selectedRoute?.let {route ->
                         locationEngine.assign(route)
                         mlNavigation.startNavigation(route)
                         binding.instructionBar.visibility = View.VISIBLE
+                        binding.recenterButton.visibility = View.VISIBLE
+                        binding.routeOptionsSheet.visibility = View.GONE
                         binding.startNavButton.visibility = View.GONE
                         binding.bottomSheet.bottomLayout.visibility = View.VISIBLE
                     }
@@ -461,16 +585,21 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
 
                 binding.bottomSheet.cancelNavButton.setOnClickListener {
                     mlNavigation.stopNavigation()
+                    selectedRoute = null
                     binding.bottomSheet.bottomLayout.visibility = View.GONE
                     binding.instructionBar.visibility = View.GONE
+                    binding.startNavButton.visibility = View.GONE
+                    binding.recenterButton.visibility = View.GONE
                     binding.searchBar.visibility = View.VISIBLE
+                    binding.routeOptionsSheet.visibility = View.VISIBLE
                     binding.searchBar.setQuery("",false)
                     routes.forEachIndexed { index, _ ->
                         style.removeLayer("$ROUTE_LAYER_ID-$index")
                         style.removeSource("$ROUTE_SOURCE_ID-$index")
                     }
 
-                    selectedRoute = null
+                    resetCameraState(map)
+
                 }
 
             }
@@ -479,12 +608,80 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
 
     }
 
+    private fun formatTime(seconds: Double): String {
+        val totalSeconds = seconds.toLong()
+        val hours = totalSeconds / 3600
+        val minutes = (totalSeconds % 3600) / 60
+
+        return when {
+            hours > 0 && minutes > 0 -> "${hours}hr ${minutes}min"
+            hours > 0 -> "$hours hr"
+            minutes > 0 -> "$minutes min"
+            else -> "$minutes min"
+        }
+
+    }
+
+    fun formatDistance(meters: Double): String {
+        val km = meters / 1000.0
+        return if (km >= 1) {
+            String.format(Locale.getDefault(), context?.getString(R.string.distance_km) ?: "", km)
+        } else {
+            String.format(Locale.getDefault(), context?.getString(R.string.distance_m) ?: "", meters)
+        }
+    }
+
+    fun showEta(route: DirectionsRoute) {
+
+        updateEta(route.duration, route.distance)
+
+    }
+
+    fun updateEta(durationRemaining: Double, distanceRemaining: Double) {
+
+        val durationMinutes =  formatTime(durationRemaining)
+        val distanceKm = formatDistance(distanceRemaining)
+
+        val currentTime = System.currentTimeMillis()
+        val arrivingTimeMilli = currentTime + (durationRemaining * 1000).toLong()
+
+        val dateFormat = SimpleDateFormat(TIME_PATTERN, Locale.getDefault())
+        val arrivingTime = dateFormat.format(Date(arrivingTimeMilli))
+
+        binding.bottomSheet.time.text = durationMinutes
+        binding.bottomSheet.distance.text = distanceKm
+        binding.bottomSheet.arrivingTime.text = arrivingTime
+    }
+
+
+    private fun showRoutesOverview(map: MapLibreMap, routes: List<DirectionsRoute>) {
+        val builder = LatLngBounds.Builder()
+        routes.forEach { route ->
+            val routeLine = LineString(route.geometry, Constants.PRECISION_6)
+            routeLine.coordinates.forEach { point ->
+                builder.include(LatLng(point.latitude, point.longitude))
+            }
+        }
+
+        try {
+            val bounds = builder.build()
+            map.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 150))
+        } catch (e: Exception) {
+            Log.e(TAG, "${e.message}")
+        }
+    }
+
+
 
 
     private fun handleRouteClick(routes: List<DirectionsRoute>, map: MapLibreMap, style: Style) {
 
-        map.addOnMapClickListener { point ->
+        currentClickListener?.let {
+            map.removeOnMapClickListener(it)
+        }
 
+
+        val newListener = MapLibreMap.OnMapClickListener { point ->
             val screenPoint = map.projection.toScreenLocation(point)
             val features = map.queryRenderedFeatures(
                 screenPoint,
@@ -492,34 +689,29 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
             )
 
             if (features.isNotEmpty()) {
-                val clickedFeature= features[0]
-
-                val routeIndex = clickedFeature.getNumberProperty(ROUTE_INDEX)?.toInt()
-
-                Log.d(TAG, "$routeIndex")
-
-                if (routeIndex != null) {
+                val routeIndex = features[0].getNumberProperty(ROUTE_INDEX)?.toInt()
+                if(routeIndex != null) {
                     selectedRoute = routes[routeIndex]
-
                     routes.forEachIndexed { i, _ ->
                         val color = if (i == routeIndex) Color.BLUE else Color.LTGRAY
-                        style.getLayer("$ROUTE_LAYER_ID-$i")?.setProperties(
-                            lineColor(color)
-                        )
+                        style.getLayer("$ROUTE_LAYER_ID-$i")?.setProperties(lineColor(color))
                     }
 
-                    val selectedLayerId = "$ROUTE_LAYER_ID-$routeIndex"
-                    val selectedLayer = style.getLayer(selectedLayerId)
-                    if (selectedLayer != null) {
-                        style.removeLayer(selectedLayer)
-                        style.addLayer(selectedLayer)
-                    }
+                  showEta(selectedRoute!!)
+
                 }
-
+                val selectedLayerId = "$ROUTE_LAYER_ID-$routeIndex"
+                val selectedLayer = style.getLayer(selectedLayerId)
+                if (selectedLayer != null) {
+                    style.removeLayer(selectedLayer)
+                    style.addLayer(selectedLayer)
+                }
             }
             true
         }
 
+        currentClickListener = newListener
+        map.addOnMapClickListener(newListener)
     }
 
 
@@ -584,7 +776,12 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                 ),
                 "costing_options" to mapOf(
                     "auto" to mapOf(
-                        "top_speed" to 130
+                        "top_speed" to 130,
+                        "use_ferry" to 0,
+                        "use_highways" to 0,
+                        "use_tolls" to 0,
+                        "use_distance" to 0
+
                     )
                 ),
                 "locations" to listOf(
@@ -622,11 +819,19 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
             }
 
             override fun onResponse(call: Call, response: Response) {
-                val raw = response.body!!.string()
-                Log.d(TAG, raw)
-                val directionsResponse = DirectionsResponse.fromJson(raw)
-                Log.d(TAG, "${directionsResponse.routes.size}")
-                continuation.resume(directionsResponse)
+                try {
+                    val raw = response.body?.string()
+                    if(raw != null) {
+                        Log.d(TAG, raw)
+
+                        val directionsResponse = DirectionsResponse.fromJson(raw)
+                        Log.d(TAG, "${directionsResponse.routes.size}")
+                        continuation.resume(directionsResponse)
+                    }
+                }catch (e: Exception) {
+                        Log.e(TAG, "${e.message}")
+                        continuation.resumeWithException(e)
+                }
             }
         })
     }
@@ -634,7 +839,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
 
     private fun fetchSuggestion(query: String?) {
         val client = OkHttpClient()
-        val url = "https://photon.komoot.io/api/?q=$query&lon=${originPoint.longitude}&lat=${originPoint.latitude}&limit=10&lang=en&location_bias_scale=1.0&bbox=68.0,6.5,97.5,36.9"
+        val url = "https://photon.komoot.io/api/?q=$query&lon=${originPoint.longitude}&lat=${originPoint.latitude}&limit=10&lang=en&location_bias_scale=5.0&bbox=68.0,6.0,97.5,37.0"
 
         val request = Request.Builder().url(url).build()
 
@@ -707,8 +912,10 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
 
 
     private fun drawRoute(map: MapLibreMap ,style: Style, routes: List<DirectionsRoute>) {
-        style.removeLayer(ROUTE_LAYER_ID)
-        style.removeSource(ROUTE_SOURCE_ID)
+        routes.forEachIndexed { index, route ->
+            style.removeLayer("$ROUTE_LAYER_ID-$index")
+            style.removeSource("$ROUTE_SOURCE_ID-$index")
+        }
 
         routes.forEachIndexed { index, route ->
             val routeLine = LineString(route.geometry, Constants.PRECISION_6)
@@ -733,13 +940,14 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                 style.addLayerBelow(routeLayer, "$ROUTE_LAYER_ID-${index-1}")
             }
             binding.startNavButton.visibility = View.VISIBLE
+            binding.routeOptionsSheet.visibility = View.GONE
 
         }
     }
 
 
     @SuppressWarnings("MissingPermission")
-    private fun enableLocationComponent(map: MapLibreMap, style: Style) {
+    private fun enableLocationComponent(location: Point, map: MapLibreMap, style: Style) {
         map.locationComponent.activateLocationComponent(
             LocationComponentActivationOptions.builder(requireContext(), style)
                 .useDefaultLocationEngine(false)
@@ -747,9 +955,18 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                 .build()
         )
 
-        followLocation(map)
+//        followLocation(map)
 
         map.locationComponent.isLocationComponentEnabled = true
+        map.animateCamera(
+            CameraUpdateFactory.newLatLngZoom(
+                LatLng(location.latitude, location.longitude),
+                17.0
+            ),
+            1500
+        )
+
+
     }
 
     private fun followLocation(map: MapLibreMap) {
@@ -772,4 +989,21 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
         )
     }
 
+    private fun resetCameraState(map: MapLibreMap) {
+        if (map.locationComponent.isLocationComponentActivated) {
+
+            map.locationComponent.cameraMode = CameraMode.NONE
+            map.locationComponent.renderMode = RenderMode.NORMAL
+
+            map.animateCamera(
+                CameraUpdateFactory.newCameraPosition(
+                    CameraPosition.Builder()
+                        .zoom(14.0)
+                        .tilt(0.0)
+                        .build()
+                ),
+                1000
+            )
+        }
+    }
 }
