@@ -22,8 +22,12 @@ class SuggestionAdapter(private var suggestion: List<Suggestion>, private val on
         holder.item.text = currentItem.name
         val region = if(!currentItem.state.isNullOrBlank()){
             currentItem.state
-        }else {
+        }else if (!currentItem.city.isNullOrBlank()){
             currentItem.city
+        }else if(!currentItem.country.isNullOrBlank()){
+            currentItem.country
+        }else {
+            currentItem.name
         }
         holder.country.text = "$region, ${currentItem.country}"
 

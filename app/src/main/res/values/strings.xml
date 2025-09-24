@@ -22,6 +22,7 @@
     <string name="fastest_route">Fastest route</string>
     <string name="shortest_route">Shortest route</string>
     <string name="avoid_route_options">Avoid Route options</string>
+    <string name="no_route_found">Couldn\'t find a route to the searched place.</string>
 
 
 </resources>

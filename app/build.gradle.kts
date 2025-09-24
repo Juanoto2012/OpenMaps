@@ -53,9 +53,12 @@ dependencies {
     implementation(libs.maplibre.navigation.core)
     implementation(libs.maplibre.geojson)
     implementation(libs.play.services.location)
+    implementation(libs.lifecycle.viewmodel.ktx)
+    implementation(libs.lifecycle.livedata.ktx)
 
     implementation(libs.okhttp)
     implementation(libs.androidx.core.ktx)
+    implementation(libs.fragment.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
     implementation(libs.androidx.activity)

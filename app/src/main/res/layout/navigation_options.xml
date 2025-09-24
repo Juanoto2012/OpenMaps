@@ -5,6 +5,12 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content">
 
+    <View
+        android:layout_width="80dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center"
+        android:background="@color/black"/>
+
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -12,7 +18,8 @@
         android:textStyle="bold"
         android:textSize="20sp"
         android:textColor="@color/black"
-        android:paddingTop="8dp"/>
+        android:paddingTop="8dp"
+        android:layout_marginTop="8dp"/>
 
     <androidx.appcompat.widget.SwitchCompat
         android:id="@+id/switch_tolls"
@@ -20,21 +27,23 @@
         android:layout_height="wrap_content"
         android:text="@string/avoid_tolls"
         android:textColor="@color/black"
-        android:textSize="15sp"/>
+        android:textSize="18sp"/>
 
     <androidx.appcompat.widget.SwitchCompat
         android:id="@+id/switch_motorways"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:textColor="@color/black"
-        android:text="@string/avoid_motorways" />
+        android:text="@string/avoid_motorways"
+        android:textSize="18sp"/>
 
     <androidx.appcompat.widget.SwitchCompat
         android:id="@+id/switch_ferries"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:textColor="@color/black"
-        android:text="@string/avoid_ferries" />
+        android:text="@string/avoid_ferries"
+        android:textSize="18sp"/>
 
     <TextView
         android:layout_width="match_parent"
@@ -55,13 +64,17 @@
             android:layout_height="wrap_content"
             android:id="@+id/fastest"
             android:textColor="@color/black"
-            android:text="@string/fastest_route" />
+            android:checked="true"
+            android:text="@string/fastest_route"
+            android:textSize="18sp"
+            android:layout_marginTop="8dp"/>
 
         <RadioButton
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:id="@+id/shortest"
             android:textColor="@color/black"
-            android:text="@string/shortest_route"/>
+            android:text="@string/shortest_route"
+            android:textSize="18sp"/>
     </RadioGroup>
 </LinearLayout>
