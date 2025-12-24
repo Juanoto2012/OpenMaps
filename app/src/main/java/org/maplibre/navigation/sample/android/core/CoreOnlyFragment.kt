@@ -1,3 +1,7 @@
+// Archivo restaurado a su estado anterior a las dos últimas ediciones.
+
+// Este archivo ha sido restaurado a su versión anterior antes de la última edición.
+
 package org.maplibre.navigation.sample.android.core
 
 import android.Manifest
@@ -78,7 +82,6 @@ import org.maplibre.geojson.model.Point
 import org.maplibre.geojson.turf.TurfMeasurement
 import org.maplibre.geojson.turf.TurfMisc
 import org.maplibre.geojson.turf.TurfUnit
-import org.maplibre.navigation.core.location.replay.ReplayRouteLocationEngine
 import org.maplibre.navigation.core.location.toAndroidLocation
 import org.maplibre.navigation.core.models.BannerInstructions
 import org.maplibre.navigation.core.models.DirectionsResponse
@@ -112,18 +115,14 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
         private const val DESTINATION_LAYER_ID = "destination-layer"
         private const val DESTINATION_SOURCE_ID = "destination-source"
         private const val MARKER_ICON = "marker-icon"
-        private const val MAP_STYLE_URL = "https://tiles.versatiles.org/assets/styles/colorful/style.json"
+        private const val MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
 
         private const val VALHALLA_URL = "https://valhalla1.openstreetmap.de/route"
-
-        private const val GRAPHHOPPER_URL = "https://graphhopper.com/api/1/navigate?key=7088b84f-4cee-4059-96de-fd0cbda2fdff"
 
         private const val OSRM_URL = "https://router.project-osrm.org/route/v1/driving/"
 
 
         private const val VALHALLA = "valhalla"
-
-        private const val GRAPHHOPPER = "graphhopper"
 
         private const val PACKAGE = "package"
 
@@ -157,8 +156,8 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
 
     private var job: Job? = null
 
+    private var isCameraTrackingUser: Boolean = true
 
-    val locationEngine = ReplayRouteLocationEngine()
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -201,8 +200,18 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                     .fromUri(MAP_STYLE_URL)
             ) { style ->
                 currentStyle = style
-                initializeLocationAndMap(map, style)
-
+                // Comprobación de permisos antes de inicializar ubicación y mapa
+                if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                    ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                    initializeLocationAndMap(map, style)
+                }
+                // Listener para saber si el usuario mueve el mapa manualmente
+                map.addOnCameraMoveListener {
+                    if (isCameraTrackingUser) {
+                        isCameraTrackingUser = false
+                        binding.recenterButton.visibility = View.VISIBLE
+                    }
+                }
                 ViewCompat.setOnApplyWindowInsetsListener(binding.map) {_, insets ->
                     map.uiSettings.setCompassMargins(
                         0,
@@ -256,8 +265,21 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
         }
 
         binding.recenterButton.setOnClickListener {
+            isCameraTrackingUser = true
             binding.map.getMapAsync { map ->
-                followLocation(map)
+                if (map.locationComponent.isLocationComponentActivated) {
+                    map.locationComponent.setCameraMode(
+                        CameraMode.TRACKING_GPS,
+                        object : OnLocationCameraTransitionListener {
+                            override fun onLocationCameraTransitionFinished(cameraMode: Int) {
+                                map.locationComponent.zoomWhileTracking(17.0)
+                                map.locationComponent.tiltWhileTracking(60.0)
+                                binding.recenterButton.visibility = View.GONE
+                            }
+                            override fun onLocationCameraTransitionCanceled(cameraMode: Int) {}
+                        }
+                    )
+                }
             }
         }
 
@@ -335,17 +357,17 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
         }
     }
 
-    override fun onInit(p0: Int) {
-        if (p0 == TextToSpeech.SUCCESS) {
-            val result = textToSpeech?.setLanguage(Locale.US)
-
-            if(result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                Log.d(TAG, getString(R.string.language_not_supported))
-            }else {
-                Log.d(TAG, getString(R.string.initialization_successfully))
+    // --- Cambios para indicaciones de voz en español ---
+    override fun onInit(status: Int) {
+        if (status == TextToSpeech.SUCCESS) {
+            val result = textToSpeech?.setLanguage(Locale("es", "ES"))
+            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                Log.d(TAG, "Idioma no soportado")
+            } else {
+                Log.d(TAG, "Inicialización exitosa")
             }
-        }else {
-            Log.d(TAG, getString(R.string.initialization_failed))
+        } else {
+            Log.d(TAG, "Fallo en la inicialización")
         }
     }
 
@@ -440,6 +462,11 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
 
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
     private fun initializeLocationAndMap(map: MapLibreMap, style: Style) {
+        // Comprobación de permisos antes de obtener la ubicación
+        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+            ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return
+        }
         getUserLocation { location ->
             originPoint = location
             enableLocationComponent(location, map, style)
@@ -450,6 +477,14 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                     altitude = 0.0
                 }
             )
+            // Seguir la ubicación del usuario siempre
+            map.locationComponent.addOnLocationClickListener {
+                if (!isCameraTrackingUser) {
+                    isCameraTrackingUser = true
+                    map.locationComponent.setCameraMode(CameraMode.TRACKING_GPS, null)
+                    binding.recenterButton.visibility = View.GONE
+                }
+            }
         }
     }
 
@@ -500,7 +535,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                             accessToken = "valhalla",
                             voiceInstructions = true,
                             bannerInstructions = true,
-                            language = "en-US",
+                            language = "es-ES",
                             coordinates = listOf(
                                 userLocation,
                                 destinationPoint
@@ -524,19 +559,21 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
 //                    requireContext(),
 //                    looper = Looper.getMainLooper(),
 //                )
-                val options = MapLibreNavigationOptions(
-                    defaultMilestonesEnabled = true
-                )
-
-                 mlNavigation = AndroidMapLibreNavigation(
+                mlNavigation = AndroidMapLibreNavigation(
                     context = requireContext(),
-                    locationEngine = locationEngine,
-                    options = options
+                    options = MapLibreNavigationOptions(
+                        defaultMilestonesEnabled = true
+                    )
                 )
 
+                // --- Mantener el icono de posición del usuario en la ubicación real durante la navegación ---
+                // En el listener de progreso de navegación, actualizar la posición del usuario en el mapa y recalcular si se desvía
                 mlNavigation?.addProgressChangeListener { location, routeProgress ->
 
                     map.locationComponent.forceLocationUpdate(location.toAndroidLocation())
+                    if (isCameraTrackingUser) {
+                        map.animateCamera(CameraUpdateFactory.newLatLng(LatLng(location.latitude, location.longitude)))
+                    }
                     val style = map.style
 
                     val distanceRemaining = routeProgress.distanceRemaining
@@ -560,12 +597,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
 
                     val nearestPointGeometry = nearestPoint.geometry as Point
 
-                    val distanceToRoute = TurfMeasurement.distance(currentPoint, nearestPointGeometry,
-                        TurfUnit.METERS)
-
-                    Log.d(TAG, "$nearestPoint")
-                    Log.d(TAG, "$distanceToRoute")
-
+                    val distanceToRoute = TurfMeasurement.distance(currentPoint, nearestPointGeometry, TurfUnit.METERS)
                     if(distanceToRoute > 40) {
                         mlNavigation?.stopNavigation()
 
@@ -583,7 +615,6 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                             val newDirectionRes = withContext(Dispatchers.IO) {
                                 fetchRoute(currentPoint, destinationPoint)
                             }
-
                             val newRoute = newDirectionRes.routes.first().copy(
                                 routeOptions = RouteOptions(
                                     baseUrl = "https://valhalla.routing",
@@ -592,7 +623,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                                     accessToken = "valhalla",
                                     voiceInstructions = true,
                                     bannerInstructions = true,
-                                    language = "en-US",
+                                    language = "es-ES",
                                     coordinates = listOf(
                                         currentPoint,
                                         destinationPoint
@@ -604,6 +635,10 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                             drawRoute(map, style!!, listOf(newRoute))
 
                             mlNavigation?.startNavigation(newRoute)
+                            // Recentrar cámara si estaba siguiendo
+                            if (isCameraTrackingUser) {
+                                map.animateCamera(CameraUpdateFactory.newLatLng(LatLng(currentPoint.latitude, currentPoint.longitude)))
+                            }
                         }
 
                     }
@@ -667,13 +702,16 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
 
                 binding.startNavButton.setOnClickListener {
                     selectedRoute?.let {route ->
-                        locationEngine.assign(route)
                         mlNavigation?.startNavigation(route)
                         isNavigating = true
                         binding.instructionBar.visibility = View.VISIBLE
                         binding.recenterButton.visibility = View.VISIBLE
                         binding.routeOptionsSheet.visibility = View.GONE
                         binding.startNavButton.visibility = View.GONE
+                        // Notificación inicial
+                        val firstInstruction = route.legs.firstOrNull()?.steps?.firstOrNull()?.bannerInstructions?.firstOrNull()?.primary?.text ?: "Navegando..."
+                        val firstIcon = route.legs.firstOrNull()?.steps?.firstOrNull()?.bannerInstructions?.firstOrNull()?.let { IconMapper.getIconImage(it.primary.type, it.primary.modifier) } ?: R.drawable.ic_navigation
+                        startNavigationNotification(firstInstruction, firstIcon)
                     }
 
                     routes.forEachIndexed { index, route ->
@@ -691,11 +729,12 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                     mlNavigation?.stopNavigation()
                     selectedRoute = null
                     isNavigating = false
+                    isCameraTrackingUser = false
                     binding.bottomSheet.bottomLayout.visibility = View.GONE
                     binding.navRouteSheet.visibility = View.GONE
                     binding.instructionBar.visibility = View.GONE
                     binding.startNavButton.visibility = View.GONE
-                    binding.recenterButton.visibility = View.GONE
+                    binding.recenterButton.visibility = View.VISIBLE
                     binding.searchBar.visibility = View.VISIBLE
                     binding.routeOptionsSheet.visibility = View.VISIBLE
                     binding.searchBar.setQuery("",false)
@@ -710,6 +749,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
 
                     resetCameraState(userLocation ,map)
 
+                    stopNavigationNotification()
                 }
             }
 
@@ -859,8 +899,6 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
 
 
     private suspend fun fetchRoute(origin: Point, destinationPoint: Point): DirectionsResponse = suspendCoroutine { continuation ->
-        val provider = VALHALLA
-
 
         val options = viewModel.routeOptions.value ?: org.maplibre.navigation.sample.android.model.RouteOptions()
 
@@ -869,58 +907,42 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
         val avoidHighway = options.avoidHighways
         val useDistance = options.useDistance
 
-        val requestBody = if(provider == GRAPHHOPPER) {
-            mapOf(
-                "type" to "mapbox",
-                "profile" to "car",
-                "locale" to "en-US",
-                "points" to listOf(
-                    listOf(origin.longitude, origin.latitude),
-                    listOf(destinationPoint.longitude, destinationPoint.latitude)
+        val requestBody = mapOf(
+            "format" to "osrm",
+            "costing" to "auto",
+            "banner_instructions" to true,
+            "voice_instructions" to true,
+            "language" to "es-ES",
+            "alternates" to 3,
+            "directions_options" to mapOf(
+                "units" to "kilometers"
+            ),
+            "costing_options" to mapOf(
+                "auto" to mapOf(
+                    "top_speed" to 130,
+                    "use_ferry" to if(avoidFerry) 0 else 1,
+                    "use_highways" to if(avoidHighway) 0 else 1,
+                    "use_tolls" to if(avoidToll) 0 else 1,
+                    "use_distance" to useDistance
+                )
+            ),
+            "locations" to listOf(
+                mapOf(
+                    "lon" to origin.longitude,
+                    "lat" to origin.latitude,
+                    "type" to "break"
+                ),
+                mapOf(
+                    "lon" to destinationPoint.longitude,
+                    "lat" to destinationPoint.latitude,
+                    "type" to "break"
                 )
             )
-        } else {
-            mapOf(
-                "format" to "osrm",
-                "costing" to "auto",
-                "banner_instructions" to true,
-                "voice_instructions" to true,
-                "language" to "en-US",
-                "alternates" to 3,
-                "directions_options" to mapOf(
-                    "units" to "kilometers"
-                ),
-                "costing_options" to mapOf(
-                    "auto" to mapOf(
-                        "top_speed" to 130,
-                        "use_ferry" to if(avoidFerry) 0 else 1,
-                        "use_highways" to if(avoidHighway) 0 else 1,
-                        "use_tolls" to if(avoidToll) 0 else 1,
-                        "use_distance" to useDistance
-
-                    )
-                ),
-                "locations" to listOf(
-
-                    mapOf(
-                        "lon" to origin.longitude,
-                        "lat" to origin.latitude,
-                        "type" to "break"
-                    ),
-                    mapOf(
-                        "lon" to destinationPoint.longitude,
-                        "lat" to destinationPoint.latitude,
-                        "type" to "break"
-                    )
-                )
-            )
-        }
+        )
 
         val requestBodyJson = Gson().toJson(requestBody)
         val client = OkHttpClient()
-
-        val url = if (provider == VALHALLA) VALHALLA_URL
-        else GRAPHHOPPER_URL
+        val url = VALHALLA_URL
 
         val request = Request.Builder()
             .header("User-Agent", "ML Nav - Android Sample App")
@@ -954,7 +976,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                     }
                 } catch (e: Exception) {
                     Log.e(TAG, "${e.message}")
-                        continuation.resumeWithException(e)
+                    continuation.resumeWithException(e)
                 }
             }
         })
@@ -1034,13 +1056,17 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
 
         binding.map.getMapAsync { map ->
             map.getStyle { style ->
-                loadRoute(map, style, destinationPoint)
+                // Comprobación de permisos antes de cargar la ruta
+                if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                    ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                    loadRoute(map, style, destinationPoint)
+                }
             }
         }
 
     }
 
-
+    @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
     private fun updateRouteOptionsDuringNavigation() {
         val map = currentMap ?: return
         val style = currentStyle ?: return
@@ -1072,7 +1098,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                             accessToken = "valhalla",
                             voiceInstructions = true,
                             bannerInstructions = true,
-                            language = "en-US",
+                            language = "es-ES",
                             coordinates = listOf(
                                 userLocation,
                                 destinationPoint
@@ -1088,7 +1114,6 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                     drawRoute(map, style, listOf(newRoute))
 
                     selectedRoute = newRoute
-                    locationEngine.assign(newRoute)
                     navigation.startNavigation(newRoute)
 
                     binding.startNavButton.visibility = View.GONE
@@ -1215,4 +1240,27 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
             )
         }
     }
+
+    private fun startNavigationNotification(instruction: String, iconRes: Int) {
+        val context = requireContext().applicationContext
+        val intent = Intent(context, NavigationNotificationService::class.java)
+        intent.putExtra(NavigationNotificationService.EXTRA_INSTRUCTION, instruction)
+        intent.putExtra(NavigationNotificationService.EXTRA_ICON_RES, iconRes)
+        context.startForegroundService(intent)
+    }
+
+    private fun updateNavigationNotification(instruction: String, iconRes: Int) {
+        val context = requireContext().applicationContext
+        val intent = Intent(context, NavigationNotificationService::class.java)
+        intent.putExtra(NavigationNotificationService.EXTRA_INSTRUCTION, instruction)
+        intent.putExtra(NavigationNotificationService.EXTRA_ICON_RES, iconRes)
+        context.startService(intent)
+    }
+
+    private fun stopNavigationNotification() {
+        val context = requireContext().applicationContext
+        val intent = Intent(context, NavigationNotificationService::class.java)
+        context.stopService(intent)
+    }
 }
+

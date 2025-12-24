@@ -8,7 +8,7 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "org.maplibre.navigation.sample.android"
+        applicationId = "com.juanoto2012.maps"
         minSdk = 28
         targetSdk = 35
         versionCode = 1
