@@ -38,7 +38,7 @@ La aplicación móvil de OpenMaps lleva todo este poder a tu bolsillo, optimizad
 
 Actualmente, la versión estable **1.0 "Horizon"** se distribuye exclusivamente a través de este repositorio.
 
-1. Ve a la sección de [**Releases**](https://github.com/tu-usuario/openmaps/releases).
+1. Ve a la sección de [**Releases**](https://github.com/Juanoto2012/OpenMaps/releases).
 2. Descarga el archivo `OpenMaps-v1.0.apk`.
 3. Instala el APK en tu dispositivo (asegúrate de permitir "Fuentes desconocidas").
 
