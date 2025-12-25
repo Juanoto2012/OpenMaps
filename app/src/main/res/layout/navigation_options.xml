@@ -77,4 +77,13 @@
             android:text="@string/shortest_route"
             android:textSize="18sp"/>
     </RadioGroup>
+
+    <Button
+        android:id="@+id/download_maps_button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Descargar mapas offline"
+        android:textColor="@color/white"
+        android:backgroundTint="@color/blue"
+        android:layout_marginTop="16dp"/>
 </LinearLayout>

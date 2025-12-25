@@ -54,7 +54,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
-import org.json.JSONObject
+import org.json.JSONArray
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
@@ -354,6 +354,11 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                 val useDistance = if (checkedId == R.id.fastest) 0 else 1
                 viewModel.updateUseDistance(useDistance)
                 updateRouteOptionsDuringNavigation()
+        }
+
+        // Botón para descargar mapas offline
+        binding.routeOptions.downloadMapsButton.setOnClickListener {
+            Toast.makeText(requireContext(), "La caché automática está activa. Los mapas que visites se guardarán para uso offline.", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -988,7 +993,8 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
 
         query?.length?.let {
             if(it > 2) {
-                val url = "https://photon.komoot.io/api/?q=$query&lat=${originPoint.latitude}&lon=${originPoint.longitude}&limit=10&lang=en&location_bias_scale=0.2"
+                // Usar Notainim en vez de Photon
+                val url = "https://notainim.xyz/search?query=$query&limit=10"
 
                 val request = Request.Builder().url(url).build()
 
@@ -1002,25 +1008,18 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
 
                         Log.d(TAG, response)
 
-                        val root = JSONObject(response)
-
-                        val features  = root.getJSONArray("features")
-
+                        // Notainim responde con un array de objetos
+                        val results = JSONArray(response)
                         val suggestions = mutableListOf<Suggestion>()
 
-                        for (i in 0 until features.length()) {
-                            val feature = features.getJSONObject(i)
-                            val properties = feature.getJSONObject("properties")
-                            val geometry = feature.getJSONObject("geometry")
-                            val coords = geometry.getJSONArray("coordinates")
-
-                            val name = properties.optString("name")
-                            val city = properties.optString("city")
-                            val state = properties.optString("state")
-                            val country = properties.optString("country")
-                            val lon = coords.getDouble(0)
-                            val lat = coords.getDouble(1)
-
+                        for (i in 0 until results.length()) {
+                            val item = results.getJSONObject(i)
+                            val name = item.optString("display_name")
+                            val city = item.optString("city", "")
+                            val state = item.optString("state", "")
+                            val country = item.optString("country", "")
+                            val lon = item.optDouble("lon")
+                            val lat = item.optDouble("lat")
 
                             suggestions.add(Suggestion(name, city, state, country, lon, lat))
                         }
@@ -1029,27 +1028,17 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                             adapter.updateData(suggestions)
                         }
 
-                        if(features.length() > 0) {
-                            val first = features.getJSONObject(0)
-
-                            val geometry = first.getJSONObject("geometry")
-
-                            val coords = geometry.getJSONArray("coordinates")
-
-                            val lon = coords.getDouble(0)
-                            val lat = coords.getDouble(1)
-
+                        if(results.length() > 0) {
+                            val first = results.getJSONObject(0)
+                            val lon = first.optDouble("lon")
+                            val lat = first.optDouble("lat")
                             Log.d(TAG,"$lon $lat")
-
-
                             destinationPoint = Point(lon, lat)
                         }
                     }
-
                 })
             }
         }
-
     }
 
     private fun fetchDestination() {
@@ -1262,4 +1251,10 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
         val intent = Intent(context, NavigationNotificationService::class.java)
         context.stopService(intent)
     }
+
+    /**
+     * Descarga manual de regiones offline NO soportada en esta versión de MapLibre.
+     * La caché automática está activa por defecto.
+     */
+    // private fun descargarRegionOffline() { ... }
 }
