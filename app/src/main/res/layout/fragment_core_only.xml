@@ -45,24 +45,13 @@
                     app:iconifiedByDefault="false"
                     app:queryHint="Search..." />
 
-<<<<<<< HEAD
-                <Button
-=======
                 <ImageView
->>>>>>> cb599bd (update ui)
                     android:id="@+id/cancel_button"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="20dp"
-<<<<<<< HEAD
-                    android:text="cancel"
-                    android:textColor="@color/blue"
-                    android:backgroundTint="@color/transparent"
-                    android:textSize="18sp"
-=======
                     android:src="@drawable/cancel_img"
                     android:contentDescription="@null"
->>>>>>> cb599bd (update ui)
                     android:visibility="gone" />
 
             </LinearLayout>
@@ -140,7 +129,8 @@
         android:layout_gravity="bottom|end"
         android:layout_marginBottom="100dp"
         android:layout_marginEnd="10dp"
-        android:visibility="gone"/>
+        android:visibility="gone"
+        android:contentDescription="@string/recenter_button"/>
 
     <LinearLayout
         android:id="@+id/navRouteSheet"
@@ -158,11 +148,6 @@
             layout="@layout/cancel_bottom_sheet"/>
     </LinearLayout>
 
-
-
-    <!--    <include android:id="@+id/bottomSheet"-->
-<!--        layout="@layout/cancel_bottom_sheet"/>-->
-
     <LinearLayout
         android:id="@+id/routeOptionsSheet"
         android:layout_width="match_parent"
@@ -177,7 +162,6 @@
         <include android:id="@+id/routeOptions"
             layout="@layout/navigation_options"/>
     </LinearLayout>
-
 
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
