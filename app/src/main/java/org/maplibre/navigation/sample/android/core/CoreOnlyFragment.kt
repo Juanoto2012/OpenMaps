@@ -261,7 +261,10 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
             binding.searchBar.clearFocus()
             binding.cancelButton.visibility = View.GONE
             binding.searchResultsContainer.visibility = View.GONE
+<<<<<<< HEAD
 
+=======
+>>>>>>> cb599bd (update ui)
         }
 
         binding.recenterButton.setOnClickListener {
@@ -1263,4 +1266,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
         context.stopService(intent)
     }
 }
+<<<<<<< HEAD
 
+=======
+>>>>>>> cb599bd (update ui)

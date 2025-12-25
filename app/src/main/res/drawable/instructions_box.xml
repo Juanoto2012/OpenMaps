@@ -3,7 +3,11 @@
 
     android:shape="rectangle">
 
+<<<<<<< HEAD
     <solid android:color="#00654f"/>
+=======
+    <solid android:color="#80000000"/>
+>>>>>>> cb599bd (update ui)
 
     <corners android:radius="10dp"/>
 

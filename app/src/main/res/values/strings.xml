@@ -16,5 +16,11 @@
     <string name="route_options">Opciones de ruta</string>
     <string name="fastest_route">Ruta más rápida</string>
     <string name="shortest_route">Ruta más corta</string>
+<<<<<<< HEAD
 </resources>
 
+=======
+    <string name="cancel_navigation">Cancelar navegación</string>
+    <string name="overview_route">Vista general de la ruta</string>
+</resources>
+>>>>>>> cb599bd (update ui)

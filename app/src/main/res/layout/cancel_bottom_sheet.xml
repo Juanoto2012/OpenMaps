@@ -20,7 +20,11 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="10dp"
             android:background="@color/white"
+<<<<<<< HEAD
             android:contentDescription="@null"
+=======
+            android:contentDescription="@string/cancel_navigation"
+>>>>>>> cb599bd (update ui)
             android:src="@drawable/cancel_img" />
 
         <LinearLayout
@@ -70,7 +74,11 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="10dp"
             android:background="@color/white"
+<<<<<<< HEAD
             android:contentDescription="@null"
+=======
+            android:contentDescription="@string/overview_route"
+>>>>>>> cb599bd (update ui)
             android:src="@drawable/overview" />
 
 

@@ -45,15 +45,24 @@
                     app:iconifiedByDefault="false"
                     app:queryHint="Search..." />
 
+<<<<<<< HEAD
                 <Button
+=======
+                <ImageView
+>>>>>>> cb599bd (update ui)
                     android:id="@+id/cancel_button"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="20dp"
+<<<<<<< HEAD
                     android:text="cancel"
                     android:textColor="@color/blue"
                     android:backgroundTint="@color/transparent"
                     android:textSize="18sp"
+=======
+                    android:src="@drawable/cancel_img"
+                    android:contentDescription="@null"
+>>>>>>> cb599bd (update ui)
                     android:visibility="gone" />
 
             </LinearLayout>
