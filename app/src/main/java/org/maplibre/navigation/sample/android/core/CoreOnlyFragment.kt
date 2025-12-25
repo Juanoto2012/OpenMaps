@@ -237,7 +237,6 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
         binding.recyclerView.adapter = adapter
 
         val searchEditText = binding.searchBar.findViewById<EditText>(androidx.appcompat.R.id.search_src_text)
-
         searchEditText.setTextColor(Color.BLACK)
         searchEditText.setHintTextColor(Color.BLACK)
 
@@ -359,6 +358,11 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
         // Botón para descargar mapas offline
         binding.routeOptions.downloadMapsButton.setOnClickListener {
             Toast.makeText(requireContext(), "La caché automática está activa. Los mapas que visites se guardarán para uso offline.", Toast.LENGTH_LONG).show()
+        }
+
+        // Botón para borrar caché de mapas
+        binding.routeOptions.clearCacheButton.setOnClickListener {
+            borrarCacheMapas()
         }
     }
 
@@ -606,8 +610,8 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                     if(distanceToRoute > 40) {
                         mlNavigation?.stopNavigation()
 
-                        Log.d(TAG, getString(R.string.user_off_route))
-                        Toast.makeText(requireContext(), R.string.user_off_route,
+                        Log.d(TAG, "Te has desviado de la ruta")
+                        Toast.makeText(requireContext(), "Te has desviado de la ruta",
                             Toast.LENGTH_SHORT).show()
 
                         routes.forEachIndexed { index, route ->
@@ -988,56 +992,63 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
     }
 
 
+    // 1. Volver a usar Photon para sugerencias
     private fun fetchSuggestion(query: String?) {
         val client = OkHttpClient()
-
         query?.length?.let {
-            if(it > 2) {
-                // Usar Notainim en vez de Photon
-                val url = "https://notainim.xyz/search?query=$query&limit=10"
-
+            if (it > 2) {
+                val url = "https://photon.komoot.io/api/?q=$query&limit=10&lang=es"
                 val request = Request.Builder().url(url).build()
-
-                client.newCall(request).enqueue(object : Callback{
+                client.newCall(request).enqueue(object : Callback {
                     override fun onFailure(call: Call, e: IOException) {
                         Log.d(TAG, "${e.message}")
                     }
-
                     override fun onResponse(call: Call, response: Response) {
-                        val response = response.body?.string() ?: return
-
-                        Log.d(TAG, response)
-
-                        // Notainim responde con un array de objetos
-                        val results = JSONArray(response)
+                        val responseStr = response.body?.string() ?: return
+                        Log.d(TAG, responseStr)
+                        val results = org.json.JSONObject(responseStr)
+                            .optJSONArray("features") ?: return
                         val suggestions = mutableListOf<Suggestion>()
-
                         for (i in 0 until results.length()) {
                             val item = results.getJSONObject(i)
-                            val name = item.optString("display_name")
-                            val city = item.optString("city", "")
-                            val state = item.optString("state", "")
-                            val country = item.optString("country", "")
-                            val lon = item.optDouble("lon")
-                            val lat = item.optDouble("lat")
-
+                            val properties = item.optJSONObject("properties")
+                            val geometry = item.optJSONObject("geometry")
+                            val coordinates = geometry?.optJSONArray("coordinates")
+                            val lon = coordinates?.optDouble(0) ?: 0.0
+                            val lat = coordinates?.optDouble(1) ?: 0.0
+                            val name = properties?.optString("name") ?: ""
+                            val city = properties?.optString("city") ?: ""
+                            val state = properties?.optString("state") ?: ""
+                            val country = properties?.optString("country") ?: ""
                             suggestions.add(Suggestion(name, city, state, country, lon, lat))
                         }
-
                         requireActivity().runOnUiThread {
                             adapter.updateData(suggestions)
                         }
-
-                        if(results.length() > 0) {
+                        if (results.length() > 0) {
                             val first = results.getJSONObject(0)
-                            val lon = first.optDouble("lon")
-                            val lat = first.optDouble("lat")
-                            Log.d(TAG,"$lon $lat")
+                            val geometry = first.optJSONObject("geometry")
+                            val coordinates = geometry?.optJSONArray("coordinates")
+                            val lon = coordinates?.optDouble(0) ?: 0.0
+                            val lat = coordinates?.optDouble(1) ?: 0.0
                             destinationPoint = Point(lon, lat)
                         }
                     }
                 })
             }
+        }
+    }
+
+    // 2. Función para borrar la caché de mapas
+    private fun borrarCacheMapas() {
+        try {
+            val cacheDir = requireContext().cacheDir
+            cacheDir?.let {
+                it.deleteRecursively()
+                Toast.makeText(requireContext(), "Caché de mapas borrada.", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Toast.makeText(requireContext(), "Error al borrar la caché: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 

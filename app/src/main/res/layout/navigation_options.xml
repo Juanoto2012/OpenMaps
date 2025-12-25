@@ -86,4 +86,13 @@
         android:textColor="@color/white"
         android:backgroundTint="@color/blue"
         android:layout_marginTop="16dp"/>
+
+    <Button
+        android:id="@+id/clear_cache_button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Borrar mapas descargados"
+        android:textColor="@color/white"
+        android:backgroundTint="@color/blue"
+        android:layout_marginTop="8dp"/>
 </LinearLayout>
