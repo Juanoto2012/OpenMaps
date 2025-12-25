@@ -54,7 +54,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
-import org.json.JSONArray
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
@@ -118,15 +117,6 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
         private const val MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty"
 
         private const val VALHALLA_URL = "https://valhalla1.openstreetmap.de/route"
-
-        private const val OSRM_URL = "https://router.project-osrm.org/route/v1/driving/"
-
-
-        private const val VALHALLA = "valhalla"
-
-        private const val PACKAGE = "package"
-
-        private const val TIME_PATTERN = "h:mm a"
     }
 
     private lateinit var binding: FragmentCoreOnlyBinding
@@ -332,7 +322,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
         binding.routeOptions.switchMotorways.setOnCheckedChangeListener { btn, checked ->
             if (btn.isPressed) viewModel.updateAvoidHighway(checked)
         }
-        binding.routeOptions.routeTypeGroup.setOnCheckedChangeListener { group, checkedId ->
+        binding.routeOptions.routeTypeGroup.setOnCheckedChangeListener { _, checkedId ->
                 val useDistance = if (checkedId == R.id.fastest) 0 else 1
                 viewModel.updateUseDistance(useDistance)
         }
@@ -349,7 +339,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
             if (btn.isPressed) viewModel.updateAvoidHighway(checked)
             updateRouteOptionsDuringNavigation()
         }
-        binding.bottomSheet.etaRouteOptions.routeTypeGroup.setOnCheckedChangeListener { group, checkedId ->
+        binding.bottomSheet.etaRouteOptions.routeTypeGroup.setOnCheckedChangeListener { _, checkedId ->
                 val useDistance = if (checkedId == R.id.fastest) 0 else 1
                 viewModel.updateUseDistance(useDistance)
                 updateRouteOptionsDuringNavigation()
@@ -364,6 +354,8 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
         binding.routeOptions.clearCacheButton.setOnClickListener {
             borrarCacheMapas()
         }
+
+        // Eliminar llamada a setupRouteOptionsSheetButtons() porque la función ya no existe ni es necesaria
     }
 
     // --- Cambios para indicaciones de voz en español ---
@@ -410,7 +402,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
 
             snackBar.setAction(R.string.settings){
                 val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                intent.data = Uri.fromParts(PACKAGE, requireContext().packageName, null)
+                intent.data = Uri.fromParts("package", requireContext().packageName, null)
                 startActivity(intent)
             }
             snackBar.show()
@@ -424,7 +416,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
             Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
         if(permissionGranted){
-            getUserLocation { point ->
+            getUserLocation { _ ->
 
             }
 
@@ -531,7 +523,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                     return@launch
                 }
 
-                val routes = directionsResponse.routes.mapIndexed { index, route ->
+                val routes = directionsResponse.routes.mapIndexed { _, route ->
                     route.copy(
                         routeOptions = RouteOptions(
                         // These dummy route options are not not used to create directions,
@@ -803,7 +795,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
         val currentTime = System.currentTimeMillis()
         val arrivingTimeMilli = currentTime + (durationRemaining * 1000).toLong()
 
-        val dateFormat = SimpleDateFormat(TIME_PATTERN, Locale.getDefault())
+        val dateFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
         val arrivingTime = dateFormat.format(Date(arrivingTimeMilli))
 
         binding.bottomSheet.time.text = durationMinutes
@@ -1143,11 +1135,10 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
 
 
     private fun drawRoute(map: MapLibreMap ,style: Style, routes: List<DirectionsRoute>) {
-        routes.forEachIndexed { index, route ->
+        routes.forEachIndexed { index, _ ->
             style.removeLayer("$ROUTE_LAYER_ID-$index")
             style.removeSource("$ROUTE_SOURCE_ID-$index")
         }
-
         routes.forEachIndexed { index, route ->
             val routeLine = LineString(route.geometry, Constants.PRECISION_6)
 
@@ -1247,14 +1238,6 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
         intent.putExtra(NavigationNotificationService.EXTRA_INSTRUCTION, instruction)
         intent.putExtra(NavigationNotificationService.EXTRA_ICON_RES, iconRes)
         context.startForegroundService(intent)
-    }
-
-    private fun updateNavigationNotification(instruction: String, iconRes: Int) {
-        val context = requireContext().applicationContext
-        val intent = Intent(context, NavigationNotificationService::class.java)
-        intent.putExtra(NavigationNotificationService.EXTRA_INSTRUCTION, instruction)
-        intent.putExtra(NavigationNotificationService.EXTRA_ICON_RES, iconRes)
-        context.startService(intent)
     }
 
     private fun stopNavigationNotification() {
