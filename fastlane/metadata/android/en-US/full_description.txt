@@ -1,9 +1,0 @@
-OpenMaps is a next-generation mapping application that uses vector data to provide a smooth experience.
-
-Key Features:
-- Offline Navigation: Download maps and travel without an internet connection.
-- Total Privacy: No trackers, no ads, and no telemetry.
-- POIs: Advanced search for points of interest.
-- Customization: Support for multiple layers and map styles.
-
-Version 1.0 "Horizon" is our first stable release focused on user freedom and geographic data sovereignty.
