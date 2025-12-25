@@ -354,8 +354,6 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
         binding.routeOptions.clearCacheButton.setOnClickListener {
             borrarCacheMapas()
         }
-
-        // Eliminar llamada a setupRouteOptionsSheetButtons() porque la función ya no existe ni es necesaria
     }
 
     // --- Cambios para indicaciones de voz en español ---
@@ -989,7 +987,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
         val client = OkHttpClient()
         query?.length?.let {
             if (it > 2) {
-                val url = "https://photon.komoot.io/api/?q=$query&limit=10&lang=es"
+                val url = "https://photon.komoot.io/api/?q=$query&limit=10&lang=en"
                 val request = Request.Builder().url(url).build()
                 client.newCall(request).enqueue(object : Callback {
                     override fun onFailure(call: Call, e: IOException) {
@@ -1056,6 +1054,17 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
             }
         }
 
+    }
+
+    // --- Cambios para inicialización de mapa con permisos ---
+    private fun tryInitializeLocationAndMap(map: MapLibreMap, style: Style) {
+        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            initializeLocationAndMap(map, style)
+        } else {
+            // Puedes solicitar permisos aquí si lo deseas
+            Log.d(TAG, "Permiso de ubicación no concedido")
+        }
     }
 
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
