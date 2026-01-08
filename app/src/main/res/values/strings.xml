@@ -1,4 +1,5 @@
 <resources>
+    <string name="app_name">OpenMaps</string>
     <string name="close">Cerrar</string>
     <string name="location_permission_denied">Permiso de ubicación denegado</string>
     <string name="settings">Ajustes</string>
@@ -19,4 +20,7 @@
     <string name="cancel_navigation">Cancelar navegación</string>
     <string name="overview_route">Vista general de la ruta</string>
     <string name="recenter_button">Recentrar mapa</string>
+    <string name="search_hint">Buscar...</string>
+    <string name="download_offline_maps">Descargar mapas offline</string>
+    <string name="clear_downloaded_maps">Borrar mapas descargados</string>
 </resources>

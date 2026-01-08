@@ -1,21 +1,25 @@
-// Archivo restaurado a su estado anterior a las dos últimas ediciones.
-
-// Este archivo ha sido restaurado a su versión anterior antes de la última edición.
 
 package org.maplibre.navigation.sample.android.core
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Resources
 import android.graphics.Color
 import android.location.Location
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import android.media.MediaPlayer
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Looper
 import android.provider.Settings
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
@@ -44,7 +48,6 @@ import com.google.gson.Gson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.Call
@@ -54,6 +57,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
+import org.json.JSONArray
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
@@ -95,10 +99,10 @@ import org.maplibre.navigation.sample.android.databinding.FragmentCoreOnlyBindin
 import org.maplibre.navigation.sample.android.model.Suggestion
 import org.maplibre.navigation.sample.android.viewModel.NavigationViewModel
 import java.io.IOException
-import java.lang.Exception
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
@@ -148,6 +152,26 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
 
     private var isCameraTrackingUser: Boolean = true
 
+    private lateinit var audioManager: AudioManager
+    private lateinit var audioFocusRequest: AudioFocusRequest
+    private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+        when (focusChange) {
+            AudioManager.AUDIOFOCUS_GAIN -> {
+                // Reanudar la reproducción si es necesario
+            }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                // Bajar el volumen
+            }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                // Pausar la reproducción
+            }
+            AudioManager.AUDIOFOCUS_LOSS -> {
+                // Detener la reproducción y liberar recursos
+                textToSpeech?.stop()
+            }
+        }
+    }
+
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -160,6 +184,8 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        audioManager = requireContext().getSystemService(Context.AUDIO_SERVICE) as AudioManager
 
         fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(requireContext())
 
@@ -195,6 +221,13 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                     ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
                     initializeLocationAndMap(map, style)
                 }
+
+                map.addOnMapLongClickListener { latLng ->
+                    destinationPoint = Point(latLng.longitude, latLng.latitude)
+                    fetchDestination()
+                    true
+                }
+
                 // Listener para saber si el usuario mueve el mapa manualmente
                 map.addOnCameraMoveListener {
                     if (isCameraTrackingUser) {
@@ -273,27 +306,18 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
         }
 
 
-        binding.searchBar.setOnQueryTextListener(object :SearchView.OnQueryTextListener {
-           override fun onQueryTextSubmit(query: String?): Boolean {
-               fetchDestination()
-               return true
-           }
+        binding.searchBar.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+            override fun onQueryTextSubmit(query: String?): Boolean {
+                if (!query.isNullOrEmpty()) {
+                    fetchSuggestion(query)
+                }
+                return true
+            }
 
-           override fun onQueryTextChange(newText: String?): Boolean {
-               job?.cancel()
-               if (!newText.isNullOrEmpty()) {
-                    job = CoroutineScope(Dispatchers.Main).launch {
-                       delay(200)
-                       fetchSuggestion(newText)
-                   }
-
-               } else {
-                   adapter.updateData(emptyList())
-               }
-               return true
-           }
-
-       })
+            override fun onQueryTextChange(newText: String?): Boolean {
+                return true
+            }
+        })
         binding.map.onCreate(savedInstanceState)
 
         viewModel.routeOptions.observe(viewLifecycleOwner) { options ->
@@ -356,13 +380,27 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
         }
     }
 
-    // --- Cambios para indicaciones de voz en español ---
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
             val result = textToSpeech?.setLanguage(Locale("es", "ES"))
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
                 Log.d(TAG, "Idioma no soportado")
             } else {
+                textToSpeech?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {
+                        // No es necesario hacer nada aquí
+                    }
+
+                    override fun onDone(utteranceId: String?) {
+                        // Liberar el foco de audio cuando la instrucción de voz ha terminado
+                        audioManager.abandonAudioFocusRequest(audioFocusRequest)
+                    }
+
+                    override fun onError(utteranceId: String?) {
+                        // Liberar el foco de audio también en caso de error
+                        audioManager.abandonAudioFocusRequest(audioFocusRequest)
+                    }
+                })
                 Log.d(TAG, "Inicialización exitosa")
             }
         } else {
@@ -379,7 +417,26 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
 
 
     private fun speak(instruction: String?) {
-        textToSpeech?.speak(instruction, TextToSpeech.QUEUE_FLUSH, null, null)
+        if (instruction.isNullOrEmpty()) return
+
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+            .build()
+
+        audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+            .setAudioAttributes(audioAttributes)
+            .setAcceptsDelayedFocusGain(true)
+            .setOnAudioFocusChangeListener(audioFocusChangeListener)
+            .build()
+
+        val result = audioManager.requestAudioFocus(audioFocusRequest)
+
+        if (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+            val params = Bundle()
+            params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "uniqueId")
+            textToSpeech?.speak(instruction, TextToSpeech.QUEUE_FLUSH, params, "uniqueId")
+        }
     }
 
 
@@ -601,6 +658,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                         mlNavigation?.stopNavigation()
 
                         Log.d(TAG, "Te has desviado de la ruta")
+                        playSound(R.raw.alert)
                         Toast.makeText(requireContext(), "Te has desviado de la ruta",
                             Toast.LENGTH_SHORT).show()
 
@@ -685,6 +743,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                     voiceInstruction?.lastOrNull { remainingStepDistanceMeters <= it.distanceAlongGeometry }?.let { instruction ->
                         if (lastSpokenInstruction != instruction.announcement) {
                             speak(instruction.announcement)
+                            playSound(R.raw.indication)
                             lastSpokenInstruction = instruction.announcement
                         }
                     }
@@ -911,7 +970,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
             "costing" to "auto",
             "banner_instructions" to true,
             "voice_instructions" to true,
-            "language" to "es-ES",
+            "language" to "es",
             "alternates" to 3,
             "directions_options" to mapOf(
                 "units" to "kilometers"
@@ -944,7 +1003,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
         val url = VALHALLA_URL
 
         val request = Request.Builder()
-            .header("User-Agent", "ML Nav - Android Sample App")
+            .header("User-Agent", "OpenMaps-User-${UUID.randomUUID()}")
             .url(url)
             .post(requestBodyJson.toRequestBody("application/json; charset=utf-8".toMediaType()))
             .build()
@@ -982,12 +1041,11 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
     }
 
 
-    // 1. Volver a usar Photon para sugerencias
     private fun fetchSuggestion(query: String?) {
         val client = OkHttpClient()
         query?.length?.let {
             if (it > 2) {
-                val url = "https://photon.komoot.io/api/?q=$query&limit=10&lang=en"
+                val url = "https://nominatim.openstreetmap.org/search?q=$query&format=json&limit=10"
                 val request = Request.Builder().url(url).build()
                 client.newCall(request).enqueue(object : Callback {
                     override fun onFailure(call: Call, e: IOException) {
@@ -996,38 +1054,30 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                     override fun onResponse(call: Call, response: Response) {
                         val responseStr = response.body?.string() ?: return
                         Log.d(TAG, responseStr)
-                        val results = org.json.JSONObject(responseStr)
-                            .optJSONArray("features") ?: return
+                        val results = JSONArray(responseStr)
                         val suggestions = mutableListOf<Suggestion>()
                         for (i in 0 until results.length()) {
                             val item = results.getJSONObject(i)
-                            val properties = item.optJSONObject("properties")
-                            val geometry = item.optJSONObject("geometry")
-                            val coordinates = geometry?.optJSONArray("coordinates")
-                            val lon = coordinates?.optDouble(0) ?: 0.0
-                            val lat = coordinates?.optDouble(1) ?: 0.0
-                            val name = properties?.optString("name") ?: ""
-                            val city = properties?.optString("city") ?: ""
-                            val state = properties?.optString("state") ?: ""
-                            val country = properties?.optString("country") ?: ""
+                            val lon = item.optDouble("lon")
+                            val lat = item.optDouble("lat")
+                            val displayName = item.optString("display_name")
+                            // Nominatim provides a single display_name, we can parse it for details
+                            val parts = displayName.split(", ")
+                            val name = parts.getOrNull(0) ?: ""
+                            val city = parts.getOrNull(1) ?: ""
+                            val state = parts.getOrNull(2) ?: ""
+                            val country = parts.lastOrNull() ?: ""
                             suggestions.add(Suggestion(name, city, state, country, lon, lat))
                         }
                         requireActivity().runOnUiThread {
                             adapter.updateData(suggestions)
-                        }
-                        if (results.length() > 0) {
-                            val first = results.getJSONObject(0)
-                            val geometry = first.optJSONObject("geometry")
-                            val coordinates = geometry?.optJSONArray("coordinates")
-                            val lon = coordinates?.optDouble(0) ?: 0.0
-                            val lat = coordinates?.optDouble(1) ?: 0.0
-                            destinationPoint = Point(lon, lat)
                         }
                     }
                 })
             }
         }
     }
+
 
     // 2. Función para borrar la caché de mapas
     private fun borrarCacheMapas() {
@@ -1253,6 +1303,14 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
         val context = requireContext().applicationContext
         val intent = Intent(context, NavigationNotificationService::class.java)
         context.stopService(intent)
+    }
+
+    private fun playSound(resId: Int) {
+        val mediaPlayer = MediaPlayer.create(context, resId)
+        mediaPlayer.start()
+        mediaPlayer.setOnCompletionListener { mp ->
+            mp.release()
+        }
     }
 
     /**

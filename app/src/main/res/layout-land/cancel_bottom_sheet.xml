@@ -6,12 +6,13 @@
     android:layout_height="wrap_content"
     android:background="?attr/colorSurface"
     android:gravity="center_vertical"
-    android:orientation="vertical"
+    android:orientation="horizontal"
     android:visibility="gone">
 
     <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="@dimen/bottom_sheet_height"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
@@ -36,8 +37,8 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
                 android:layout_marginTop="@dimen/spacing_small"
-                android:textColor="?attr/colorOnSurface"
-                android:textSize="@dimen/text_size_headline"
+                android:textColor="?android:attr/textColorPrimary"
+                android:textSize="24sp"
                 android:textStyle="bold" />
 
             <LinearLayout
@@ -50,16 +51,16 @@
                     android:id="@+id/distance"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:textColor="?attr/colorOnSurfaceVariant"
-                    android:textSize="@dimen/text_size_subhead" />
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:textSize="18sp" />
 
                 <TextView
                     android:id="@+id/arrivingTime"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="@dimen/spacing_small"
-                    android:textColor="?attr/colorOnSurfaceVariant"
-                    android:textSize="@dimen/text_size_subhead" />
+                     android:textColor="?android:attr/textColorSecondary"
+                    android:textSize="18sp" />
 
 
             </LinearLayout>

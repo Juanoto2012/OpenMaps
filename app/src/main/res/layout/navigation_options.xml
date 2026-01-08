@@ -1,58 +1,68 @@
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:orientation="vertical"
-    android:padding="16dp"
+    android:padding="@dimen/spacing_medium"
     android:layout_width="match_parent"
     android:layout_height="wrap_content">
 
     <View
-        android:layout_width="80dp"
-        android:layout_height="4dp"
+        android:layout_width="@dimen/handle_bar_width"
+        android:layout_height="@dimen/handle_bar_height"
         android:layout_gravity="center"
-        android:background="@color/black"/>
+        android:background="?attr/colorOnSurfaceVariant"/>
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/avoid_route_options"
         android:textStyle="bold"
-        android:textSize="20sp"
-        android:textColor="@color/black"
-        android:paddingTop="8dp"
-        android:layout_marginTop="8dp"/>
+        android:textSize="@dimen/text_size_title"
+        android:textColor="?attr/colorOnSurface"
+        android:paddingTop="@dimen/drawable_padding"
+        android:layout_marginTop="@dimen/drawable_padding"/>
 
     <androidx.appcompat.widget.SwitchCompat
         android:id="@+id/switch_tolls"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/avoid_tolls"
-        android:textColor="@color/black"
-        android:textSize="18sp"/>
+        android:textColor="?attr/colorOnSurface"
+        android:drawableStart="@drawable/ic_toll"
+        android:drawableTint="?attr/colorOnSurface"
+        android:drawablePadding="@dimen/drawable_padding"
+        android:textSize="@dimen/text_size_subhead"/>
 
     <androidx.appcompat.widget.SwitchCompat
         android:id="@+id/switch_motorways"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textColor="@color/black"
+        android:textColor="?attr/colorOnSurface"
         android:text="@string/avoid_motorways"
-        android:textSize="18sp"/>
+        android:drawableStart="@drawable/ic_road"
+        android:drawableTint="?attr/colorOnSurface"
+        android:drawablePadding="@dimen/drawable_padding"
+        android:textSize="@dimen/text_size_subhead"/>
 
     <androidx.appcompat.widget.SwitchCompat
         android:id="@+id/switch_ferries"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textColor="@color/black"
+        android:textColor="?attr/colorOnSurface"
         android:text="@string/avoid_ferries"
-        android:textSize="18sp"/>
+        android:drawableStart="@drawable/ic_ferry"
+        android:drawableTint="?attr/colorOnSurface"
+        android:drawablePadding="@dimen/drawable_padding"
+        android:textSize="@dimen/text_size_subhead"/>
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/route_options"
         android:textStyle="bold"
-        android:textSize="20sp"
-        android:textColor="@color/black"
-        android:paddingTop="16dp"/>
+        android:textSize="@dimen/text_size_title"
+        android:textColor="?attr/colorOnSurface"
+        android:paddingTop="@dimen/spacing_medium"/>
 
     <RadioGroup
         android:id="@+id/route_type_group"
@@ -63,36 +73,40 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:id="@+id/fastest"
-            android:textColor="@color/black"
+            android:textColor="?attr/colorOnSurface"
             android:checked="true"
             android:text="@string/fastest_route"
-            android:textSize="18sp"
-            android:layout_marginTop="8dp"/>
+            android:textSize="@dimen/text_size_subhead"
+            android:layout_marginTop="@dimen/drawable_padding"/>
 
         <RadioButton
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:id="@+id/shortest"
-            android:textColor="@color/black"
+            android:textColor="?attr/colorOnSurface"
             android:text="@string/shortest_route"
-            android:textSize="18sp"/>
+            android:textSize="@dimen/text_size_subhead"/>
     </RadioGroup>
 
-    <Button
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/download_maps_button"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Descargar mapas offline"
+        android:text="@string/download_offline_maps"
+        app:icon="@drawable/ic_download_maps"
+        app:iconTint="@color/white"
         android:textColor="@color/white"
-        android:backgroundTint="@color/blue"
-        android:layout_marginTop="16dp"/>
+        app:backgroundTint="?attr/colorPrimary"
+        android:layout_marginTop="@dimen/spacing_medium"/>
 
-    <Button
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/clear_cache_button"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Borrar mapas descargados"
+        android:text="@string/clear_downloaded_maps"
+        app:icon="@drawable/ic_delete"
+        app:iconTint="@color/white"
         android:textColor="@color/white"
-        android:backgroundTint="@color/blue"
-        android:layout_marginTop="8dp"/>
+        app:backgroundTint="?attr/colorPrimary"
+        android:layout_marginTop="@dimen/drawable_padding"/>
 </LinearLayout>

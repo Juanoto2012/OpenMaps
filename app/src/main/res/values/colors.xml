@@ -2,7 +2,13 @@
 <resources>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
-    <color name="blue">#FF0000FF</color>
+    
+    <color name="colorPrimary">#4e7dcf</color>
+    <color name="colorPrimaryDark">#3A58A7</color>
+    <color name="colorAccent">#557ed9</color>
+
     <color name="transparent">#00000000</color>
-    <color name="gray"> #808080</color>
+    <color name="gray">#808080</color>
+    <color name="purple">#557ed9</color>
+    <color name="blue">#4e7dcf</color>
 </resources>
