@@ -1,6 +1,6 @@
 # 🗺️ OpenMaps
 
-![Versión](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![Versión](https://img.shields.io/badge/version-1.1.0-blue.svg)
 ![Licencia](https://img.shields.io/badge/license-MIT-green.svg)
 ![Plataforma](https://img.shields.io/badge/platform-Android-brightgreen.svg)
 ![Estado](https://img.shields.io/badge/status-stable-brightgreen.svg)
@@ -20,6 +20,8 @@ OpenMaps surge como una alternativa abierta y transparente a los servicios de ma
 * 🛡️ **Privacidad por Diseño:** Sin rastreo de ubicación, cookies de terceros ni comercialización de datos.
 * 🎨 **Temas Personalizables:** Soporte nativo para modo oscuro, mapas topográficos y vista de satélite.
 * 🛰️ **Navegación Gire-a-Gire:** Instrucciones de voz precisas y recalculado rápido de rutas.
+* 🚗 **Soporte para Android Auto y Automotive:** OpenMaps ahora es compatible con Android Auto y Android Automotive, llevando la navegación directamente a la pantalla de tu coche.
+* 🔍 **Búsqueda de lugares con Photon:** Implementación de la API de Photon para una búsqueda de lugares más precisa y detallada.
 
 ---
 
@@ -36,7 +38,7 @@ La aplicación móvil de OpenMaps lleva todo este poder a tu bolsillo, optimizad
 
 ### 📥 Descarga e Instalación
 
-Actualmente, la versión estable **1.0 "Horizon"** se distribuye exclusivamente a través de este repositorio.
+Actualmente, la versión estable **1.1 "Horizon"** se distribuye exclusivamente a través de este repositorio.
 
 1. Ve a la sección de [**Releases**](https://github.com/Juanoto2012/OpenMaps/releases).
    
@@ -46,5 +48,4 @@ Actualmente, la versión estable **1.0 "Horizon"** se distribuye exclusivamente 
 3. Instala el APK en tu dispositivo (asegúrate de permitir "Fuentes desconocidas").
 
 > **Próximamente:** Estamos trabajando para que OpenMaps esté disponible en **F-Droid** y **OpenAPK** muy pronto. ¡Mantente atento a las actualizaciones!
-
 
