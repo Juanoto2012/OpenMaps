@@ -48,6 +48,8 @@ import com.google.gson.Gson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.Call
@@ -172,6 +174,9 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
         }
     }
 
+    private var currentUserAgent: String = ""
+    private var userAgentUpdateJob: Job? = null
+
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -208,6 +213,15 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
         navBottomSheet.state = BottomSheetBehavior.STATE_COLLAPSED
         navBottomSheet.isFitToContents = false
         navBottomSheet.expandedOffset = screenHeight / 2
+
+        // Start the user agent update job
+        userAgentUpdateJob = lifecycleScope.launch {
+            while (isActive) {
+                currentUserAgent = "OpenMaps-User-${UUID.randomUUID()}"
+                Log.d(TAG, "Updated User-Agent: $currentUserAgent")
+                delay(3000) // Update every 3 seconds
+            }
+        }
 
         binding.map.getMapAsync { map ->
             currentMap = map
@@ -412,6 +426,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
     override fun onDestroy() {
         binding.map.onDestroy()
         textToSpeech?.shutdown()
+        userAgentUpdateJob?.cancel() // Cancel the user agent update job
         super.onDestroy()
     }
 
@@ -1003,7 +1018,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
         val url = VALHALLA_URL
 
         val request = Request.Builder()
-            .header("User-Agent", "OpenMaps-User-${UUID.randomUUID()}")
+            .header("User-Agent", currentUserAgent) // Use the updated user agent here
             .url(url)
             .post(requestBodyJson.toRequestBody("application/json; charset=utf-8".toMediaType()))
             .build()

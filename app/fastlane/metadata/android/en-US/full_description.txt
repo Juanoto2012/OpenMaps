@@ -1,0 +1,6 @@
+An open-source map application for Android that allows you to explore and navigate the world.
+
+* View OpenStreetMap maps
+* Search for places and addresses
+* Get directions
+* View place information

@@ -1,0 +1,6 @@
+Una aplicación de mapas de código abierto para Android que te permite explorar y navegar por el mundo.
+
+* Ver mapas de OpenStreetMap
+* Buscar lugares y direcciones
+* Obtener direcciones
+* Ver información de lugares

@@ -1,0 +1,32 @@
+Categories:
+  - Navigation
+License: GPL-3.0
+WebSite: https://github.com/Juanoto2012/OpenMaps
+SourceCode: https://github.com/Juanoto2012/OpenMaps
+IssueTracker: https://github.com/Juanoto2012/OpenMaps/issues
+
+Name: OpenMaps
+Summary: Una aplicación de mapas de código abierto
+Description:
+ Una aplicación de mapas de código abierto para Android que te permite explorar y navegar por el mundo.
+ 
+ * Ver mapas de OpenStreetMap
+ * Buscar lugares y direcciones
+ * Obtener direcciones
+ * Ver información de lugares
+
+RepoType: git
+Repo: https://github.com/Juanoto2012/OpenMaps.git
+
+Builds:
+  - versionName: 1.0
+    versionCode: 1
+    commit: v1.0
+    subdir: app
+    gradle:
+      - yes
+
+AutoUpdateMode: Version v(.*)
+UpdateCheckMode: Tags
+CurrentVersion: 1.0
+CurrentVersionCode: 1
