@@ -53,6 +53,8 @@
                 android:value="1" />
         </service>
 
+        <service android:name=".service.NavigationService" android:foregroundServiceType="location" />
+
     </application>
 
     <uses-feature

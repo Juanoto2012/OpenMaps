@@ -1,4 +1,3 @@
-
 package org.maplibre.navigation.sample.android.core
 
 import android.Manifest
@@ -14,7 +13,6 @@ import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.media.MediaPlayer
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.os.Looper
 import android.provider.Settings
@@ -45,7 +43,6 @@ import com.google.android.gms.location.Priority
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.snackbar.Snackbar
 import com.google.gson.Gson
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -100,6 +97,8 @@ import org.maplibre.navigation.sample.android.adapter.SuggestionAdapter
 import org.maplibre.navigation.sample.android.databinding.FragmentCoreOnlyBinding
 import org.maplibre.navigation.sample.android.model.Suggestion
 import org.maplibre.navigation.sample.android.viewModel.NavigationViewModel
+import org.maplibre.navigation.sample.android.NavigationHolder
+import org.maplibre.navigation.sample.android.service.NavigationService
 import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -149,8 +148,6 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
     private var currentStyle: Style? = null
 
     private var isNavigating: Boolean = false
-
-    private var job: Job? = null
 
     private var isCameraTrackingUser: Boolean = true
 
@@ -223,6 +220,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
             }
         }
 
+        @SuppressLint("MissingPermission")
         binding.map.getMapAsync { map ->
             currentMap = map
             map.setStyle(
@@ -410,6 +408,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                         audioManager.abandonAudioFocusRequest(audioFocusRequest)
                     }
 
+                    @Suppress("DEPRECATION")
                     override fun onError(utteranceId: String?) {
                         // Liberar el foco de audio también en caso de error
                         audioManager.abandonAudioFocusRequest(audioFocusRequest)
@@ -462,6 +461,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
         val coarseLocationGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
 
         if (fineLocationGranted || coarseLocationGranted) {
+            @SuppressLint("MissingPermission")
             binding.map.getMapAsync { map ->
                 map.getStyle { style ->
                     initializeLocationAndMap(map, style)
@@ -616,7 +616,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                     )
                 }
 
-                drawRoute(map,style, routes)
+                drawRoute(style, routes)
 
                 addDestinationMarker(style, destinationPoint)
 
@@ -636,6 +636,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                         defaultMilestonesEnabled = true
                     )
                 )
+                NavigationHolder.navigation = mlNavigation
 
                 // --- Mantener el icono de posición del usuario en la ubicación real durante la navegación ---
                 // En el listener de progreso de navegación, actualizar la posición del usuario en el mapa y recalcular si se desvía
@@ -677,7 +678,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                         Toast.makeText(requireContext(), "Te has desviado de la ruta",
                             Toast.LENGTH_SHORT).show()
 
-                        routes.forEachIndexed { index, route ->
+                        routes.forEachIndexed { index, _ ->
                             style?.removeLayer("$ROUTE_LAYER_ID-$index")
                             style?.removeSource("$ROUTE_SOURCE_ID-$index")
                         }
@@ -704,7 +705,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                                 )
                             )
 
-                            drawRoute(map, style!!, listOf(newRoute))
+                            drawRoute(style!!, listOf(newRoute))
 
                             mlNavigation?.startNavigation(newRoute)
                             // Recentrar cámara si estaba siguiendo
@@ -725,7 +726,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                         isNavigating = false
                         resetCameraState(userLocation, map)
 
-                        routes.forEachIndexed { index, route ->
+                        routes.forEachIndexed { index, _ -> // Changed 'route' to '_' as it's unused
                             style?.removeLayer("$ROUTE_LAYER_ID-$index")
                             style?.removeSource("$ROUTE_SOURCE_ID-$index")
                         }
@@ -787,8 +788,8 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                         startNavigationNotification(firstInstruction, firstIcon)
                     }
 
-                    routes.forEachIndexed { index, route ->
-                        if (route != selectedRoute) {
+                    routes.forEachIndexed { index, _ -> // Changed 'route' to '_' as it's unused
+                        if (routes[index] != selectedRoute) {
                             style.removeLayer("$ROUTE_LAYER_ID-$index")
                             style.removeSource("$ROUTE_SOURCE_ID-$index")
                         }
@@ -1122,15 +1123,16 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
     }
 
     // --- Cambios para inicialización de mapa con permisos ---
-    private fun tryInitializeLocationAndMap(map: MapLibreMap, style: Style) {
-        if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
-            ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            initializeLocationAndMap(map, style)
-        } else {
-            // Puedes solicitar permisos aquí si lo deseas
-            Log.d(TAG, "Permiso de ubicación no concedido")
-        }
-    }
+    // @Suppress("unused") // Suppress warning for unused function
+    // private fun tryInitializeLocationAndMap(map: MapLibreMap, style: Style) {
+    //     if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+    //         ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+    //         initializeLocationAndMap(map, style)
+    //     } else {
+    //         // Puedes solicitar permisos aquí si lo deseas
+    //         Log.d(TAG, "Permiso de ubicación no concedido")
+    //     }
+    // }
 
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
     private fun updateRouteOptionsDuringNavigation() {
@@ -1177,7 +1179,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
                     style.removeLayer("$ROUTE_LAYER_ID-$selectedRouteIndex" )
                     style.removeSource("$ROUTE_SOURCE_ID-$selectedRouteIndex")
 
-                    drawRoute(map, style, listOf(newRoute))
+                    drawRoute(style, listOf(newRoute))
 
                     selectedRoute = newRoute
                     navigation.startNavigation(newRoute)
@@ -1208,7 +1210,7 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
     }
 
 
-    private fun drawRoute(map: MapLibreMap ,style: Style, routes: List<DirectionsRoute>) {
+    private fun drawRoute(style: Style, routes: List<DirectionsRoute>) {
         routes.forEachIndexed { index, _ ->
             style.removeLayer("$ROUTE_LAYER_ID-$index")
             style.removeSource("$ROUTE_SOURCE_ID-$index")
@@ -1308,15 +1310,15 @@ class CoreOnlyFragment : Fragment(), TextToSpeech.OnInitListener {
 
     private fun startNavigationNotification(instruction: String, iconRes: Int) {
         val context = requireContext().applicationContext
-        val intent = Intent(context, NavigationNotificationService::class.java)
-        intent.putExtra(NavigationNotificationService.EXTRA_INSTRUCTION, instruction)
-        intent.putExtra(NavigationNotificationService.EXTRA_ICON_RES, iconRes)
+        val intent = Intent(context, NavigationService::class.java)
+        intent.putExtra("instruction", instruction)
+        intent.putExtra("icon_res", iconRes)
         context.startForegroundService(intent)
     }
 
     private fun stopNavigationNotification() {
         val context = requireContext().applicationContext
-        val intent = Intent(context, NavigationNotificationService::class.java)
+        val intent = Intent(context, NavigationService::class.java)
         context.stopService(intent)
     }
 
