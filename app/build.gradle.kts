@@ -32,8 +32,8 @@ android {
         applicationId = "com.juanoto2012.maps"
         minSdk = 28
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "1.1.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -61,6 +61,19 @@ android {
     buildFeatures {
         viewBinding = true
     }
+
+    flavorDimensions += "distribution" // Define a flavor dimension
+
+    productFlavors {
+        create("fdroid") {
+            dimension = "distribution"
+            applicationIdSuffix = ".fdroid"
+        }
+        create("google") {
+            dimension = "distribution"
+            applicationIdSuffix = ".google"
+        }
+    }
 }
 
 dependencies {
@@ -74,7 +87,8 @@ dependencies {
 
     implementation(libs.maplibre.navigation.core)
     implementation(libs.maplibre.geojson)
-    implementation(libs.play.services.location)
+    implementation(libs.play.services.location) // Add this line to make play services location available to all flavors
+    add("googleImplementation", libs.play.services.location) // Only for the 'google' flavor
     implementation(libs.lifecycle.viewmodel.ktx)
     implementation(libs.lifecycle.livedata.ktx)
 
