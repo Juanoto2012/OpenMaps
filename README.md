@@ -46,6 +46,5 @@ Actualmente, la versión estable **1.1 "Horizon"** se distribuye exclusivamente 
 =======
 
 3. Instala el APK en tu dispositivo (asegúrate de permitir "Fuentes desconocidas").
-
-> **Próximamente:** Estamos trabajando para que OpenMaps esté disponible en **F-Droid** y **OpenAPK** muy pronto. ¡Mantente atento a las actualizaciones!
+<img src="https://aura-repo.infinityfreeapp.com/badge.png" alt="" width="322">[](https://aura-repo.infinityfreeapp.com/index?appid=com.juanoto2012.openmaps)
 
