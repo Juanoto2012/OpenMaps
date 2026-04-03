@@ -46,5 +46,6 @@ Actualmente, la versión estable **1.1 "Horizon"** se distribuye exclusivamente 
 =======
 
 3. Instala el APK en tu dispositivo (asegúrate de permitir "Fuentes desconocidas").
-<img src="https://aura-repo.infinityfreeapp.com/badge.png" alt="" width="322">[](https://aura-repo.infinityfreeapp.com/index?appid=com.juanoto2012.openmaps)
+
+[![Get it on Aura Repo](https://aura-repo.infinityfreeapp.com/badge.png)](https://aura-repo.infinityfreeapp.com/index?appid=com.juanoto2012.openmaps)
 
