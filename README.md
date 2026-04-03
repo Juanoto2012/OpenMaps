@@ -5,7 +5,7 @@
 ![Plataforma](https://img.shields.io/badge/platform-Android-brightgreen.svg)
 ![Estado](https://img.shields.io/badge/status-stable-brightgreen.svg)
 <a href="https://aura-repo.infinityfreeapp.com/index?appid=com.juanoto2012.openmaps">
-  <img src="https://aura-repo.infinityfreeapp.com/badge.png" alt="Get it on Aura Repo" width="322">
+  <img src="https://aura-repo.infinityfreeapp.com/shield.png" alt="Get it on Aura Repo" width="322">
 </a>
 
 **OpenMaps** es la plataforma de cartografía de próxima generación diseñada para ofrecer libertad, precisión y colaboración en tiempo real. Un ecosistema de código abierto para visualizar el mundo sin restricciones propietarias ni rastreos invasivos.
