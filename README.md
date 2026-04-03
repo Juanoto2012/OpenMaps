@@ -4,6 +4,9 @@
 ![Licencia](https://img.shields.io/badge/license-MIT-green.svg)
 ![Plataforma](https://img.shields.io/badge/platform-Android-brightgreen.svg)
 ![Estado](https://img.shields.io/badge/status-stable-brightgreen.svg)
+<a href="https://aura-repo.infinityfreeapp.com/index?appid=com.juanoto2012.openmaps">
+  <img src="https://aura-repo.infinityfreeapp.com/badge.png" alt="Get it on Aura Repo" width="322">
+</a>
 
 **OpenMaps** es la plataforma de cartografía de próxima generación diseñada para ofrecer libertad, precisión y colaboración en tiempo real. Un ecosistema de código abierto para visualizar el mundo sin restricciones propietarias ni rastreos invasivos.
 
@@ -47,5 +50,5 @@ Actualmente, la versión estable **1.1 "Horizon"** se distribuye exclusivamente 
 
 3. Instala el APK en tu dispositivo (asegúrate de permitir "Fuentes desconocidas").
 
-[![Get it on Aura Repo](https://aura-repo.infinityfreeapp.com/badge.png)](https://aura-repo.infinityfreeapp.com/index?appid=com.juanoto2012.openmaps)
+
 
